@@ -1,0 +1,101 @@
+{
+  "name": "emoji-manager-lite",
+  "version": "1.0.0",
+  "description": "本地表情包管理器 - 专为电脑用户设计的本地表情包管理工具",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev:renderer": "vite",
+    "build:renderer": "vite build",
+    "build:main": "tsc --project tsconfig.main.json",
+    "build": "npm run build:main && npm run build:renderer",
+    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\" \"npm run dev:electron\"",
+    "dev:main": "tsc --project tsconfig.main.json --watch",
+    "dev:electron": "node scripts/dev-electron.js",
+    "icons": "node scripts/generate-icons.js assets/icon.png",
+    "icons:from": "node scripts/generate-icons.js",
+    "ensure:icons": "node scripts/check-icons.js",
+    "start": "electron ./dist/main/main.js",
+    "lint": "eslint src --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit",
+    "test:renderer": "vite --port 3000",
+    "pack": "electron-builder",
+    "predist": "npm run ensure:icons",
+    "dist": "npm run build && electron-builder",
+    "package": "electron-builder",
+    "predist:win": "npm run ensure:icons",
+    "dist:win": "electron-builder --win nsis --publish never",
+    "predist:portable": "npm run ensure:icons",
+    "dist:portable": "electron-builder --win portable --publish never"
+  },
+  "keywords": [
+    "emoji",
+    "manager",
+    "desktop",
+    "electron"
+  ],
+  "author": "Emoji Manager Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/sqlite3": "^3.1.11",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "concurrently": "^8.2.0",
+    "electron": "^30.5.1",
+    "electron-builder": "^24.13.3",
+    "eslint": "^8.45.0",
+    "eslint-plugin-react": "^7.33.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "typescript": "^5.1.0",
+    "vite": "^4.4.0"
+  },
+  "dependencies": {
+    "clsx": "^2.0.0",
+    "lucide-react": "^0.263.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.15.0",
+    "sqlite3": "^5.1.7",
+    "sharp": "^0.33.4",
+    "png-to-ico": "^2.1.8",
+    "icon-gen": "^3.0.0"
+  },
+  "build": {
+    "appId": "com.emojimanager.lite",
+    "productName": "Emoji Manager Lite",
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "assets/icon.ico",
+      "artifactName": "Emoji-Manager-Lite-Setup-${version}.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false
+    },
+    "portable": {
+      "artifactName": "Emoji-Manager-Lite-Portable-${version}.${ext}"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icons"
+    }
+  }
+}
