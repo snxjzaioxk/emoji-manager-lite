@@ -45,15 +45,10 @@ const mockElectronAPI = {
   }
 };
 
-declare global {
-  interface Window {
-    electronAPI: typeof mockElectronAPI;
-  }
-}
-
 // 设置模拟 API（仅在未由 preload 注入时）
-if (typeof window !== 'undefined' && typeof window.electronAPI === 'undefined') {
-  Object.defineProperty(window, 'electronAPI', { value: mockElectronAPI });
+// 使用 any 避免与全局类型声明冲突
+if (typeof window !== 'undefined' && !(window as any).electronAPI) {
+  Object.defineProperty(window, 'electronAPI', { value: mockElectronAPI as any });
 }
 
 function App() {

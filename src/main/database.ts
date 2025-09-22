@@ -127,7 +127,39 @@ export class Database {
 
       if (filters?.isFavorite !== undefined) {
         query += " AND is_favorite = ?";
-        params.push(filters.isFavorite);
+        params.push(filters.isFavorite ? 1 : 0);
+      }
+
+      // Additional filters
+      if (filters?.format) {
+        query += " AND LOWER(format) = LOWER(?)";
+        params.push(filters.format);
+      }
+
+      if (filters?.tags && Array.isArray(filters.tags) && filters.tags.length > 0) {
+        // Match each tag as a JSON string element in the tags array
+        for (const t of filters.tags) {
+          query += " AND tags LIKE ?";
+          params.push(`%"${t}"%`);
+        }
+      }
+
+      if (filters?.sizeRange) {
+        if (typeof filters.sizeRange.min === 'number') {
+          query += " AND size >= ?";
+          params.push(filters.sizeRange.min);
+        }
+        if (typeof filters.sizeRange.max === 'number') {
+          query += " AND size <= ?";
+          params.push(filters.sizeRange.max);
+        }
+      }
+
+      if (filters?.dateRange) {
+        const start = filters.dateRange.start instanceof Date ? filters.dateRange.start.toISOString() : String(filters.dateRange.start);
+        const end = filters.dateRange.end instanceof Date ? filters.dateRange.end.toISOString() : String(filters.dateRange.end);
+        query += " AND created_at BETWEEN ? AND ?";
+        params.push(start, end);
       }
 
       // Sorting
@@ -150,13 +182,26 @@ export class Database {
         if (err) {
           reject(err);
         } else {
-          const emojis = rows.map(row => ({
-            ...row,
-            tags: row.tags ? JSON.parse(row.tags) : [],
-            isFavorite: Boolean(row.is_favorite),
-            createdAt: new Date(row.created_at),
-            updatedAt: new Date(row.updated_at)
-          }));
+          const emojis = rows.map(row => {
+            let tags: string[] = [];
+            if (row.tags) {
+              try {
+                const parsed = JSON.parse(row.tags);
+                if (Array.isArray(parsed)) tags = parsed;
+                else if (typeof parsed === 'string') tags = parsed.split(',').map((t) => t.trim()).filter(Boolean);
+              } catch {
+                // fallback for legacy comma-separated tags
+                tags = String(row.tags).split(',').map((t) => t.trim()).filter(Boolean);
+              }
+            }
+            return {
+              ...row,
+              tags,
+              isFavorite: Boolean(row.is_favorite),
+              createdAt: new Date(row.created_at),
+              updatedAt: new Date(row.updated_at)
+            } as any;
+          });
           resolve(emojis);
         }
       });
@@ -195,7 +240,9 @@ export class Database {
 
       const values = fields.map(field => {
         const value = (updates as any)[field];
-        return field === 'tags' ? JSON.stringify(value) : value;
+        if (field === 'tags') return JSON.stringify(value);
+        if (field === 'isFavorite') return value ? 1 : 0;
+        return value;
       });
 
       this.db.run(

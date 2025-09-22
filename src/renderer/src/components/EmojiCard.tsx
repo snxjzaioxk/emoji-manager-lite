@@ -21,6 +21,22 @@ export function EmojiCard({
 }: EmojiCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [imgSrc, setImgSrc] = useState<string>('');
+
+  const toFileSrc = (p: string) => {
+    if (!p) return '';
+    if (p.startsWith('file://')) return p;
+    const normalized = p.replace(/\\/g, '/');
+    try {
+      return new URL('file:///' + normalized).href;
+    } catch {
+      return 'file:///' + normalized;
+    }
+  };
+
+  React.useEffect(() => {
+    setImgSrc(toFileSrc(emoji.storagePath));
+  }, [emoji.storagePath]);
 
   const getImageSize = () => {
     switch (thumbnailSize) {
@@ -42,8 +58,10 @@ export function EmojiCard({
     }
   };
 
-  const handleToggleFavorite = () => {
-    onUpdate({ isFavorite: !emoji.isFavorite });
+  const handleToggleFavorite = async () => {
+    try {
+      await onUpdate({ isFavorite: !emoji.isFavorite });
+    } catch {}
   };
 
   const handleOpenLocation = () => {
@@ -62,9 +80,12 @@ export function EmojiCard({
           autoGenerateTags: true,
         });
         onUpdate({ usageCount: emoji.usageCount });
+      } else {
+        alert('转换失败：未生成输出文件');
       }
     } catch (error) {
       console.error('Failed to convert format:', error);
+      alert('转换失败，请重试或更换格式');
     } finally {
       setLoading(false);
     }
@@ -159,10 +180,16 @@ export function EmojiCard({
       <div className="flex flex-col items-center">
         <div className={`${getImageSize()} mb-2 overflow-hidden rounded bg-bg-tertiary flex items-center justify-center`}>
           <img
-            src={`file://${emoji.storagePath}`}
+            src={imgSrc}
             alt={emoji.filename}
             className="max-w-full max-h-full object-contain"
             onDoubleClick={handleCopy}
+            onError={async () => {
+              try {
+                const data = await window.electronAPI?.files?.readAsDataURL(emoji.storagePath);
+                if (data) setImgSrc(data);
+              } catch {}
+            }}
           />
         </div>
 

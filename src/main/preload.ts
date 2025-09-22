@@ -24,7 +24,8 @@ const api = {
     selectFolder: () => ipcRenderer.invoke('select-folder'),
     selectFiles: () => ipcRenderer.invoke('select-files'),
     openLocation: (filePath: string) => ipcRenderer.invoke('open-file-location', filePath),
-    getInfo: (filePath: string) => ipcRenderer.invoke('get-file-info', filePath)
+    getInfo: (filePath: string) => ipcRenderer.invoke('get-file-info', filePath),
+    readAsDataURL: (filePath: string) => ipcRenderer.invoke('read-file-dataurl', filePath)
   },
   
   settings: {

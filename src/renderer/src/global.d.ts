@@ -24,6 +24,7 @@ declare global {
         selectFiles: () => Promise<string[]>;
         openLocation: (filePath: string) => Promise<boolean>;
         getInfo: (filePath: string) => Promise<any>;
+        readAsDataURL: (filePath: string) => Promise<string>;
       };
       settings: {
         get: (key: string) => Promise<any>;

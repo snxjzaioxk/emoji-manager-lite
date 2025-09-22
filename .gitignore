@@ -9,6 +9,15 @@ dist/
 release/
 build/
 
+# Packaged artifacts
+*.zip
+*.7z
+*.exe
+
+# Generated icons
+assets/icon.ico
+assets/icon.icns
+
 # Environment variables
 .env
 .env.local

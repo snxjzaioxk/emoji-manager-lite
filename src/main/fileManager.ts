@@ -5,6 +5,7 @@ import sharp from 'sharp';
 import { v4 as uuidv4 } from './uuid';
 import { Database } from './database';
 import { EmojiItem, ImportOptions, ExportOptions } from '../shared/types';
+import { fileURLToPath } from 'url';
 
 export class FileManager {
   private storageDir: string;
@@ -36,6 +37,11 @@ export class FileManager {
     this.storageDirInitialized = true;
   }
 
+  private toNativePath(p: string): string {
+    if (!p) return p;
+    return p.startsWith('file:') ? fileURLToPath(p) : p;
+  }
+
   async importEmojis(options: ImportOptions): Promise<{ success: number; failed: number; duplicates: number }> {
     const stats = { success: 0, failed: 0, duplicates: 0 };
     
@@ -47,10 +53,10 @@ export class FileManager {
       // Build list of sources from array or semicolon-separated string
       let sources: string[] = [];
       if (Array.isArray((options as any).sourcePaths) && (options as any).sourcePaths.length > 0) {
-        sources = (options as any).sourcePaths as string[];
+        sources = ((options as any).sourcePaths as string[]).map((s) => this.toNativePath(s));
       } else if (options.sourcePath) {
         const raw = options.sourcePath.includes(';') ? options.sourcePath.split(';') : [options.sourcePath];
-        sources = raw.map(s => s.trim()).filter(Boolean);
+        sources = raw.map(s => this.toNativePath(s.trim())).filter(Boolean);
       }
 
       const discoveredFiles: string[] = [];
@@ -75,7 +81,7 @@ export class FileManager {
             continue;
           }
 
-          const emojiItem = await this.processFile(filePath, options.targetCategory);
+          const emojiItem = await this.processFile(filePath, options.targetCategory, options.autoGenerateTags);
           await this.database.addEmoji(emojiItem);
           stats.success++;
         } catch (error) {
@@ -136,7 +142,7 @@ export class FileManager {
     );
   }
 
-  private async processFile(filePath: string, categoryId?: string): Promise<Omit<EmojiItem, 'createdAt' | 'updatedAt'>> {
+  private async processFile(filePath: string, categoryId?: string, autoGenerateTags: boolean = true): Promise<Omit<EmojiItem, 'createdAt' | 'updatedAt'>> {
     const fileStats = await fs.stat(filePath);
     const filename = basename(filePath);
     const ext = extname(filePath).toLowerCase();
@@ -163,7 +169,7 @@ export class FileManager {
       }
     }
 
-    const tags = this.generateTags(filename);
+    const tags = autoGenerateTags ? this.generateTags(filename) : [];
 
     return {
       id,
@@ -222,7 +228,7 @@ export class FileManager {
 
   async copyToClipboard(filePath: string): Promise<void> {
     try {
-      const image = nativeImage.createFromPath(filePath);
+      const image = nativeImage.createFromPath(this.toNativePath(filePath));
       clipboard.writeImage(image);
     } catch (error) {
       console.error('Failed to copy to clipboard:', error);
@@ -232,16 +238,16 @@ export class FileManager {
 
   async getFileInfo(filePath: string): Promise<any> {
     try {
-      const stats = await fs.stat(filePath);
+      const stats = await fs.stat(this.toNativePath(filePath));
       let width = 0;
       let height = 0;
       try {
-        const metadata = await sharp(filePath).metadata();
+        const metadata = await sharp(this.toNativePath(filePath)).metadata();
         width = metadata.width || 0;
         height = metadata.height || 0;
       } catch (_e) {
         try {
-          const img = nativeImage.createFromPath(filePath);
+          const img = nativeImage.createFromPath(this.toNativePath(filePath));
           const size = img.getSize();
           width = size.width || 0;
           height = size.height || 0;
@@ -252,7 +258,7 @@ export class FileManager {
         size: stats.size,
         width,
         height,
-        format: extname(filePath).substring(1),
+        format: extname(this.toNativePath(filePath)).substring(1),
         createdAt: stats.birthtime,
         modifiedAt: stats.mtime
       };
@@ -262,20 +268,39 @@ export class FileManager {
     }
   }
 
+  async readAsDataURL(filePath: string): Promise<string> {
+    try {
+      const src = this.toNativePath(filePath);
+      const buf = await fs.readFile(src);
+      const ext = extname(src).toLowerCase();
+      const mime = ext === '.png' ? 'image/png'
+        : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
+        : ext === '.gif' ? 'image/gif'
+        : ext === '.webp' ? 'image/webp'
+        : ext === '.bmp' ? 'image/bmp'
+        : 'application/octet-stream';
+      return `data:${mime};base64,${buf.toString('base64')}`;
+    } catch (error) {
+      console.error('Failed to read file as data URL:', error);
+      throw error;
+    }
+  }
+
   async convertFormat(filePath: string, targetFormat: string): Promise<string> {
     try {
       if (!['jpg', 'jpeg', 'png', 'webp'].includes(targetFormat.toLowerCase())) {
         throw new Error('Unsupported target format');
       }
-      const currentExt = extname(filePath).replace(/^\./, '').toLowerCase();
+      const src = this.toNativePath(filePath);
+      const currentExt = extname(src).replace(/^\./, '').toLowerCase();
       const target = targetFormat.toLowerCase();
       if (currentExt === target) {
-        return filePath;
+        return src;
       }
       const tmpDir = app.getPath('temp');
-      const base = basename(filePath, extname(filePath));
+      const base = basename(src, extname(src));
       const outputPath = join(tmpDir, `${base}_${Date.now()}.${target}`);
-      let pipeline = sharp(filePath);
+      let pipeline = sharp(src);
       switch (target) {
         case 'jpg':
         case 'jpeg':
@@ -288,8 +313,23 @@ export class FileManager {
           pipeline = pipeline.webp({ quality: 90 });
           break;
       }
-      await pipeline.toFile(outputPath);
-      return outputPath;
+      try {
+        await pipeline.toFile(outputPath);
+        return outputPath;
+      } catch (sharpErr) {
+        // Fallback: try Electron nativeImage for png/jpeg
+        if (target === 'png' || target === 'jpg' || target === 'jpeg') {
+          try {
+            const img = nativeImage.createFromPath(src);
+            const buf = target === 'png' ? img.toPNG() : img.toJPEG(90);
+            await fs.writeFile(outputPath, buf);
+            return outputPath;
+          } catch (_fallbackErr) {
+            throw sharpErr;
+          }
+        }
+        throw sharpErr;
+      }
     } catch (error) {
       console.error('Failed to convert format:', error);
       throw error;

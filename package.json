@@ -11,6 +11,7 @@
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\" \"npm run dev:electron\"",
     "dev:main": "tsc --project tsconfig.main.json --watch",
     "dev:electron": "node scripts/dev-electron.js",
+    "rebuild:native": "electron-rebuild -f -w sqlite3,sharp",
     "icons": "node scripts/generate-icons.js assets/icon.png",
     "icons:from": "node scripts/generate-icons.js",
     "ensure:icons": "node scripts/check-icons.js",
@@ -36,6 +37,7 @@
   "author": "Emoji Manager Team",
   "license": "MIT",
   "devDependencies": {
+    "@electron/rebuild": "^3.6.0",
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
@@ -54,14 +56,14 @@
   },
   "dependencies": {
     "clsx": "^2.0.0",
+    "icon-gen": "^3.0.0",
     "lucide-react": "^0.263.0",
+    "png-to-ico": "^2.1.8",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.15.0",
-    "sqlite3": "^5.1.7",
     "sharp": "^0.33.4",
-    "png-to-ico": "^2.1.8",
-    "icon-gen": "^3.0.0"
+    "sqlite3": "^5.1.7"
   },
   "build": {
     "appId": "com.emojimanager.lite",
@@ -76,7 +78,9 @@
       "assets/**/*"
     ],
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "assets/icon.ico",
       "artifactName": "Emoji-Manager-Lite-Setup-${version}.${ext}",
       "signAndEditExecutable": false

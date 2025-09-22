@@ -181,9 +181,9 @@ export function SettingsDialog({ settings, onClose, onSettingsUpdate }: Settings
                 </label>
                 <input
                   type="range"
-                  min={100 * 1024 * 1024} // 100MB
-                  max={10 * 1024 * 1024 * 1024} // 10GB
-                  step={100 * 1024 * 1024} // 100MB steps
+                  min={100 * 1024 * 1024}
+                  max={10 * 1024 * 1024 * 1024}
+                  step={100 * 1024 * 1024}
                   value={formData.maxStorageSize}
                   onChange={(e) => handleInputChange('maxStorageSize', parseInt(e.target.value))}
                   className="w-full"

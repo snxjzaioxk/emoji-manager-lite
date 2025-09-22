@@ -1,4 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
+import { fileURLToPath } from 'url';
+import { isAbsolute, normalize } from 'path';
 import { join } from 'path';
 import { Database } from './database';
 import { FileManager } from './fileManager';
@@ -112,9 +114,15 @@ class EmojiManagerApp {
     });
 
     ipcMain.handle('open-file-location', async (_: unknown, filePath?: string) => {
-      if (!filePath) return false;
-      shell.showItemInFolder(filePath);
-      return true;
+      try {
+        if (!filePath) return false;
+        const nativePath = filePath.startsWith('file:') ? fileURLToPath(filePath) : filePath;
+        const finalPath = isAbsolute(nativePath) ? normalize(nativePath) : nativePath;
+        shell.showItemInFolder(finalPath);
+        return true;
+      } catch (_e) {
+        return false;
+      }
     });
 
     ipcMain.handle('get-setting', async (_: any, key: string) => {
@@ -131,6 +139,10 @@ class EmojiManagerApp {
 
     ipcMain.handle('convert-format', async (_: any, filePath: string, targetFormat: string) => {
       return await this.fileManager.convertFormat(filePath, targetFormat);
+    });
+
+    ipcMain.handle('read-file-dataurl', async (_: any, filePath: string) => {
+      return await this.fileManager.readAsDataURL(filePath);
     });
   }
 
