@@ -4,8 +4,9 @@ import { app, clipboard, nativeImage } from 'electron';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from './uuid';
 import { Database } from './database';
-import { EmojiItem, ImportOptions, ExportOptions } from '../shared/types';
+import { EmojiItem, ImportOptions, ExportOptions, AppSettings } from '../shared/types';
 import { fileURLToPath } from 'url';
+type NamingConvention = AppSettings['namingConvention'];
 
 export class FileManager {
   private storageDir: string;
@@ -353,10 +354,10 @@ export class FileManager {
     }
   }
 
-  private async getNamingConvention(): Promise<any> {
+  private async getNamingConvention(): Promise<NamingConvention> {
     const namingSettings = await this.database.getSetting('namingConvention');
     if (namingSettings && typeof namingSettings === 'object') {
-      return namingSettings;
+      return namingSettings as NamingConvention;
     }
     // Default naming convention
     return {
@@ -369,7 +370,7 @@ export class FileManager {
     };
   }
 
-  private generateConvertedFilename(originalName: string, targetFormat: string, namingSettings: any): string {
+  private generateConvertedFilename(originalName: string, targetFormat: string, namingSettings: NamingConvention): string {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
     let filename = '';
 
