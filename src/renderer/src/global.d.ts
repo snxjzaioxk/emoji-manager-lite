@@ -1,5 +1,14 @@
 import type { EmojiItem, Category, ImportOptions, ExportOptions, SearchFilters } from '../../shared/types';
 
+interface FileInfo {
+  size: number;
+  width: number;
+  height: number;
+  format: string;
+  createdAt: Date;
+  modifiedAt: Date;
+}
+
 declare global {
   interface Window {
     electronAPI: {
@@ -23,12 +32,13 @@ declare global {
         selectFolder: () => Promise<string | null>;
         selectFiles: () => Promise<string[]>;
         openLocation: (filePath: string) => Promise<boolean>;
-        getInfo: (filePath: string) => Promise<any>;
+        getInfo: (filePath: string) => Promise<FileInfo>;
         readAsDataURL: (filePath: string) => Promise<string>;
+        updateStorageLocation: (newPath: string) => Promise<void>;
       };
       settings: {
-        get: (key: string) => Promise<any>;
-        set: (key: string, value: any) => Promise<void>;
+        get: (key: string) => Promise<unknown>;
+        set: (key: string, value: unknown) => Promise<void>;
       };
     };
   }

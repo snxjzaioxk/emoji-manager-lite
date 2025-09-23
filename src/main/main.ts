@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, IpcMainInvokeEvent } from 'electron';
 import { fileURLToPath } from 'url';
 import { isAbsolute, normalize } from 'path';
 import { join } from 'path';
@@ -17,7 +17,7 @@ class EmojiManagerApp {
     this.setupIpcHandlers();
   }
 
-  createWindow(): void {
+  async createWindow(): Promise<void> {
     this.mainWindow = new BrowserWindow({
       width: 1200,
       height: 800,
@@ -34,10 +34,24 @@ class EmojiManagerApp {
 
     const isDev = !app.isPackaged;
     if (isDev) {
-      this.mainWindow.loadURL('http://localhost:3000');
+      // Try different ports that Vite might use
+      const possiblePorts = [3000, 3001, 3002, 3003];
+      let loaded = false;
+      for (const port of possiblePorts) {
+        try {
+          await this.mainWindow.loadURL(`http://localhost:${port}`);
+          loaded = true;
+          break;
+        } catch (error) {
+          console.warn(`Failed to load port ${port}:`, error);
+        }
+      }
+      if (!loaded) {
+        console.error('Failed to load any dev server port');
+      }
       this.mainWindow.webContents.openDevTools();
     } else {
-      this.mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
+      await this.mainWindow.loadFile(join(__dirname, '../../renderer/index.html'));
     }
 
     this.mainWindow.once('ready-to-show', () => {
@@ -50,56 +64,57 @@ class EmojiManagerApp {
   }
 
   private setupIpcHandlers(): void {
-    ipcMain.handle('get-emojis', async (_: any, filters: SearchFilters) => {
+    ipcMain.handle('get-emojis', async (_event: IpcMainInvokeEvent, filters: SearchFilters) => {
       return await this.database.getEmojis(filters);
     });
 
-    ipcMain.handle('add-emoji', async (_: any, emoji: Omit<EmojiItem, 'createdAt' | 'updatedAt'>) => {
+    ipcMain.handle('add-emoji', async (_event: IpcMainInvokeEvent, emoji: Omit<EmojiItem, 'createdAt' | 'updatedAt'>) => {
       return await this.database.addEmoji(emoji);
     });
 
-    ipcMain.handle('update-emoji', async (_: any, id: string, updates: Partial<EmojiItem>) => {
+    ipcMain.handle('update-emoji', async (_event: IpcMainInvokeEvent, id: string, updates: Partial<EmojiItem>) => {
       return await this.database.updateEmoji(id, updates);
     });
 
-    ipcMain.handle('delete-emoji', async (_: any, id: string) => {
+    ipcMain.handle('delete-emoji', async (_event: IpcMainInvokeEvent, id: string) => {
+      // Delete file first while DB record still exists (to find storagePath), then remove DB row
+      await this.fileManager.deleteEmojiFile(id);
       await this.database.deleteEmoji(id);
-      return await this.fileManager.deleteEmojiFile(id);
     });
 
-    ipcMain.handle('get-categories', async (_: any) => {
+    ipcMain.handle('get-categories', async (_event: IpcMainInvokeEvent) => {
       return await this.database.getCategories();
     });
 
-    ipcMain.handle('add-category', async (_: any, category: Omit<Category, 'createdAt' | 'updatedAt'>) => {
+    ipcMain.handle('add-category', async (_event: IpcMainInvokeEvent, category: Omit<Category, 'createdAt' | 'updatedAt'>) => {
       return await this.database.addCategory(category);
     });
 
-    ipcMain.handle('update-category', async (_: any, id: string, updates: Partial<Category>) => {
+    ipcMain.handle('update-category', async (_event: IpcMainInvokeEvent, id: string, updates: Partial<Category>) => {
       // sanitize to allowed fields only is handled in DB layer
-      return await this.database.updateCategory(id, updates as any);
+      return await this.database.updateCategory(id, updates);
     });
 
-    ipcMain.handle('delete-category', async (_: any, id: string) => {
+    ipcMain.handle('delete-category', async (_event: IpcMainInvokeEvent, id: string) => {
       return await this.database.deleteCategory(id);
     });
 
-    ipcMain.handle('import-emojis', async (_: any, options: ImportOptions) => {
+    ipcMain.handle('import-emojis', async (_event: IpcMainInvokeEvent, options: ImportOptions) => {
       return await this.fileManager.importEmojis(options);
     });
 
-    ipcMain.handle('export-emojis', async (_: any, options: ExportOptions) => {
+    ipcMain.handle('export-emojis', async (_event: IpcMainInvokeEvent, options: ExportOptions) => {
       return await this.fileManager.exportEmojis(options);
     });
 
-    ipcMain.handle('select-folder', async (_: any) => {
+    ipcMain.handle('select-folder', async (_event: IpcMainInvokeEvent) => {
       const result = await dialog.showOpenDialog(this.mainWindow!, {
         properties: ['openDirectory']
       });
       return result.canceled ? null : result.filePaths[0];
     });
 
-    ipcMain.handle('select-files', async (_: any) => {
+    ipcMain.handle('select-files', async (_event: IpcMainInvokeEvent) => {
       const result = await dialog.showOpenDialog(this.mainWindow!, {
         properties: ['openFile', 'multiSelections'],
         filters: [
@@ -109,7 +124,7 @@ class EmojiManagerApp {
       return result.canceled ? [] : result.filePaths;
     });
 
-    ipcMain.handle('copy-to-clipboard', async (_: any, filePath: string) => {
+    ipcMain.handle('copy-to-clipboard', async (_event: IpcMainInvokeEvent, filePath: string) => {
       return await this.fileManager.copyToClipboard(filePath);
     });
 
@@ -125,30 +140,34 @@ class EmojiManagerApp {
       }
     });
 
-    ipcMain.handle('get-setting', async (_: any, key: string) => {
+    ipcMain.handle('get-setting', async (_event: IpcMainInvokeEvent, key: string) => {
       return await this.database.getSetting(key);
     });
 
-    ipcMain.handle('set-setting', async (_: any, key: string, value: any) => {
+    ipcMain.handle('set-setting', async (_event: IpcMainInvokeEvent, key: string, value: unknown) => {
       return await this.database.setSetting(key, value);
     });
 
-    ipcMain.handle('get-file-info', async (_: any, filePath: string) => {
+    ipcMain.handle('get-file-info', async (_event: IpcMainInvokeEvent, filePath: string) => {
       return await this.fileManager.getFileInfo(filePath);
     });
 
-    ipcMain.handle('convert-format', async (_: any, filePath: string, targetFormat: string) => {
+    ipcMain.handle('convert-format', async (_event: IpcMainInvokeEvent, filePath: string, targetFormat: string) => {
       return await this.fileManager.convertFormat(filePath, targetFormat);
     });
 
-    ipcMain.handle('read-file-dataurl', async (_: any, filePath: string) => {
+    ipcMain.handle('read-file-dataurl', async (_event: IpcMainInvokeEvent, filePath: string) => {
       return await this.fileManager.readAsDataURL(filePath);
+    });
+
+    ipcMain.handle('update-storage-location', async (_event: IpcMainInvokeEvent, newPath: string) => {
+      return await this.fileManager.updateStorageLocation(newPath);
     });
   }
 
   async initialize(): Promise<void> {
     await app.whenReady();
-    this.createWindow();
+    await this.createWindow();
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {

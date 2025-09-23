@@ -25,12 +25,13 @@ const api = {
     selectFiles: () => ipcRenderer.invoke('select-files'),
     openLocation: (filePath: string) => ipcRenderer.invoke('open-file-location', filePath),
     getInfo: (filePath: string) => ipcRenderer.invoke('get-file-info', filePath),
-    readAsDataURL: (filePath: string) => ipcRenderer.invoke('read-file-dataurl', filePath)
+    readAsDataURL: (filePath: string) => ipcRenderer.invoke('read-file-dataurl', filePath),
+    updateStorageLocation: (newPath: string) => ipcRenderer.invoke('update-storage-location', newPath)
   },
   
   settings: {
     get: (key: string) => ipcRenderer.invoke('get-setting', key),
-    set: (key: string, value: any) => ipcRenderer.invoke('set-setting', key, value)
+    set: (key: string, value: unknown) => ipcRenderer.invoke('set-setting', key, value)
   }
 };
 

@@ -103,7 +103,7 @@ export function EmojiGrid({
         targetPath: target,
         emojiIds: Array.from(selectedEmojis),
         maintainStructure: false,
-      } as any);
+      });
       alert(`已导出 ${selectedEmojis.size} 个表情到:\n${target}`);
     } catch (err) {
       console.error('Batch export failed:', err);

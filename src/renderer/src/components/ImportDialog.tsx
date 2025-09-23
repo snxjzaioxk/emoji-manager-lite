@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Category } from '../../../shared/types';
-import { XIcon, FolderIcon, UploadIcon } from 'lucide-react';
+import { X as XIcon, Folder as FolderIcon, Upload as UploadIcon } from 'lucide-react';
 
 interface ImportDialogProps {
   categories: Category[];
@@ -15,7 +15,12 @@ export function ImportDialog({ categories, onClose, onImportComplete, defaultPat
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [autoGenerateTags, setAutoGenerateTags] = useState(true);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<any>(null);
+  const [importResult, setImportResult] = useState<{
+    success: number;
+    failed: number;
+    duplicates: number;
+    error?: string;
+  } | null>(null);
 
   const handleSelectFolder = async () => {
     try {

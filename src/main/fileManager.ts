@@ -52,8 +52,8 @@ export class FileManager {
 
       // Build list of sources from array or semicolon-separated string
       let sources: string[] = [];
-      if (Array.isArray((options as any).sourcePaths) && (options as any).sourcePaths.length > 0) {
-        sources = ((options as any).sourcePaths as string[]).map((s) => this.toNativePath(s));
+      if (Array.isArray(options.sourcePaths) && options.sourcePaths.length > 0) {
+        sources = options.sourcePaths.map((s: string) => this.toNativePath(s));
       } else if (options.sourcePath) {
         const raw = options.sourcePath.includes(';') ? options.sourcePath.split(';') : [options.sourcePath];
         sources = raw.map(s => this.toNativePath(s.trim())).filter(Boolean);
@@ -236,7 +236,14 @@ export class FileManager {
     }
   }
 
-  async getFileInfo(filePath: string): Promise<any> {
+  async getFileInfo(filePath: string): Promise<{
+    size: number;
+    width: number;
+    height: number;
+    format: string;
+    createdAt: Date;
+    modifiedAt: Date;
+  }> {
     try {
       const stats = await fs.stat(this.toNativePath(filePath));
       let width = 0;
@@ -251,7 +258,9 @@ export class FileManager {
           const size = img.getSize();
           width = size.width || 0;
           height = size.height || 0;
-        } catch (_) {}
+        } catch (error) {
+          console.warn('Failed to get image dimensions:', error);
+        }
       }
 
       return {
@@ -297,9 +306,17 @@ export class FileManager {
       if (currentExt === target) {
         return src;
       }
+
+      // Get naming convention settings
+      const namingSettings = await this.getNamingConvention();
+
       const tmpDir = app.getPath('temp');
-      const base = basename(src, extname(src));
-      const outputPath = join(tmpDir, `${base}_${Date.now()}.${target}`);
+      const originalName = basename(src, extname(src));
+
+      // Generate filename based on naming convention
+      const filename = this.generateConvertedFilename(originalName, target, namingSettings);
+      const outputPath = join(tmpDir, filename);
+
       let pipeline = sharp(src);
       switch (target) {
         case 'jpg':
@@ -332,6 +349,87 @@ export class FileManager {
       }
     } catch (error) {
       console.error('Failed to convert format:', error);
+      throw error;
+    }
+  }
+
+  private async getNamingConvention(): Promise<any> {
+    const namingSettings = await this.database.getSetting('namingConvention');
+    if (namingSettings && typeof namingSettings === 'object') {
+      return namingSettings;
+    }
+    // Default naming convention
+    return {
+      pattern: '{name}_{timestamp}',
+      useOriginalName: true,
+      includeTimestamp: true,
+      includeFormat: true,
+      customPrefix: '',
+      customSuffix: ''
+    };
+  }
+
+  private generateConvertedFilename(originalName: string, targetFormat: string, namingSettings: any): string {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
+    let filename = '';
+
+    if (namingSettings.pattern) {
+      // Use custom pattern
+      filename = namingSettings.pattern
+        .replace('{name}', namingSettings.useOriginalName ? originalName : 'converted')
+        .replace('{timestamp}', timestamp)
+        .replace('{format}', targetFormat)
+        .replace('{prefix}', namingSettings.customPrefix || '')
+        .replace('{suffix}', namingSettings.customSuffix || '');
+    } else {
+      // Build filename from components
+      const parts = [];
+
+      if (namingSettings.customPrefix) {
+        parts.push(namingSettings.customPrefix);
+      }
+
+      if (namingSettings.useOriginalName) {
+        parts.push(originalName);
+      }
+
+      if (namingSettings.includeTimestamp) {
+        parts.push(timestamp);
+      }
+
+      if (namingSettings.customSuffix) {
+        parts.push(namingSettings.customSuffix);
+      }
+
+      filename = parts.join('_') || 'converted';
+    }
+
+    // Add format extension
+    if (namingSettings.includeFormat) {
+      return `${filename}.${targetFormat}`;
+    } else {
+      return `${filename}.${targetFormat}`;
+    }
+  }
+
+  // Method to update storage location
+  async updateStorageLocation(newPath: string): Promise<void> {
+    try {
+      // Validate path
+      if (!existsSync(newPath)) {
+        mkdirSync(newPath, { recursive: true });
+      }
+
+      // Update setting
+      await this.database.setSetting('storageLocation', newPath);
+
+      // Update internal storage directory
+      this.storageDir = newPath;
+      this.storageDirInitialized = false;
+
+      console.log(`Storage location updated to: ${newPath}`);
+    } catch (error) {
+      console.error('Failed to update storage location:', error);
       throw error;
     }
   }

@@ -63,6 +63,14 @@ export interface AppSettings {
   autoBackup: boolean;
   maxStorageSize: number;
   recentLimit: number;
+  namingConvention: {
+    pattern: string; // Pattern for naming converted files
+    useOriginalName: boolean;
+    includeTimestamp: boolean;
+    includeFormat: boolean;
+    customPrefix: string;
+    customSuffix: string;
+  };
 }
 
 export interface DatabaseSchema {

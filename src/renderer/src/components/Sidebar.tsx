@@ -1,6 +1,16 @@
 import React from 'react';
 import { Category } from '../../../shared/types';
-import { FolderIcon, HeartIcon, ClockIcon, DownloadIcon, SettingsIcon, PlusIcon, MoreVerticalIcon, EditIcon, TrashIcon } from 'lucide-react';
+import {
+  Folder as FolderIcon,
+  Heart as HeartIcon,
+  Clock as ClockIcon,
+  Download as DownloadIcon,
+  Settings as SettingsIcon,
+  Plus as PlusIcon,
+  MoreVertical as MoreVerticalIcon,
+  Edit as EditIcon,
+  Trash as TrashIcon,
+} from 'lucide-react';
 
 interface SidebarProps {
   categories: Category[];
@@ -30,7 +40,7 @@ export function Sidebar({ categories, selectedCategory, onCategorySelect, onImpo
   };
 
   const genId = () => {
-    const g = (globalThis as any).crypto?.randomUUID?.();
+    const g = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto?.randomUUID?.();
     if (g) return g;
     return 'xxxxxxxxyxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
       const r = Math.random() * 16 | 0;
@@ -47,11 +57,8 @@ export function Sidebar({ categories, selectedCategory, onCategorySelect, onImpo
         id: genId(),
         name: name.trim(),
         description: '',
-        color: '#6c757d',
-        parentId: undefined,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } as any);
+        color: '#6c757d'
+      });
       await reloadCategories();
     } catch (e) {
       console.error('Add category failed:', e);
@@ -63,7 +70,7 @@ export function Sidebar({ categories, selectedCategory, onCategorySelect, onImpo
     const name = prompt('重命名分类', cat.name);
     if (!name || !name.trim() || name.trim() === cat.name) return;
     try {
-      await window.electronAPI?.categories?.update(cat.id, { name: name.trim() } as any);
+      await window.electronAPI?.categories?.update(cat.id, { name: name.trim() });
       await reloadCategories();
     } catch (e) {
       console.error('Rename category failed:', e);
@@ -78,9 +85,9 @@ export function Sidebar({ categories, selectedCategory, onCategorySelect, onImpo
       await window.electronAPI?.categories?.delete(cat.id);
       if (selectedCategory === cat.id) onCategorySelect('');
       await reloadCategories();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Delete category failed:', e);
-      alert(e?.message || '删除失败');
+      alert((e as Error)?.message || '删除失败');
     }
   };
 

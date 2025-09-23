@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppSettings } from '../../../shared/types';
-import { XIcon, FolderIcon } from 'lucide-react';
+import { X as XIcon, Folder as FolderIcon } from 'lucide-react';
 
 interface SettingsDialogProps {
   settings: AppSettings;
@@ -12,7 +12,7 @@ export function SettingsDialog({ settings, onClose, onSettingsUpdate }: Settings
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [saving, setSaving] = useState(false);
 
-  const handleInputChange = (key: keyof AppSettings, value: any) => {
+  const handleInputChange = (key: keyof AppSettings, value: AppSettings[keyof AppSettings]) => {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
@@ -30,6 +30,11 @@ export function SettingsDialog({ settings, onClose, onSettingsUpdate }: Settings
   const handleSave = async () => {
     setSaving(true);
     try {
+      // If storage location changed, update it first
+      if (formData.storageLocation !== settings.storageLocation) {
+        await window.electronAPI?.files?.updateStorageLocation(formData.storageLocation);
+      }
+
       await onSettingsUpdate(formData);
       onClose();
     } catch (error) {
@@ -168,6 +173,96 @@ export function SettingsDialog({ settings, onClose, onSettingsUpdate }: Settings
                   onChange={(e) => handleInputChange('recentLimit', Math.max(10, Math.min(1000, parseInt(e.target.value || '0', 10))))}
                   className="input w-full"
                 />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-md font-medium mb-4">文件命名设置</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">命名模式</label>
+                <input
+                  type="text"
+                  value={formData.namingConvention?.pattern || '{name}_{timestamp}'}
+                  onChange={(e) => handleInputChange('namingConvention', {
+                    ...formData.namingConvention,
+                    pattern: e.target.value
+                  })}
+                  placeholder="例如: {name}_{timestamp} 或 {prefix}_{name}_{suffix}"
+                  className="input w-full"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  可用变量: {'{name}'}, {'{timestamp}'}, {'{format}'}, {'{prefix}'}, {'{suffix}'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">自定义前缀</label>
+                  <input
+                    type="text"
+                    value={formData.namingConvention?.customPrefix || ''}
+                    onChange={(e) => handleInputChange('namingConvention', {
+                      ...formData.namingConvention,
+                      customPrefix: e.target.value
+                    })}
+                    placeholder="例如: emoji_"
+                    className="input w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">自定义后缀</label>
+                  <input
+                    type="text"
+                    value={formData.namingConvention?.customSuffix || ''}
+                    onChange={(e) => handleInputChange('namingConvention', {
+                      ...formData.namingConvention,
+                      customSuffix: e.target.value
+                    })}
+                    placeholder="例如: _converted"
+                    className="input w-full"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.namingConvention?.useOriginalName ?? true}
+                    onChange={(e) => handleInputChange('namingConvention', {
+                      ...formData.namingConvention,
+                      useOriginalName: e.target.checked
+                    })}
+                  />
+                  <span className="text-sm">使用原始文件名</span>
+                </label>
+
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.namingConvention?.includeTimestamp ?? true}
+                    onChange={(e) => handleInputChange('namingConvention', {
+                      ...formData.namingConvention,
+                      includeTimestamp: e.target.checked
+                    })}
+                  />
+                  <span className="text-sm">包含时间戳</span>
+                </label>
+
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.namingConvention?.includeFormat ?? true}
+                    onChange={(e) => handleInputChange('namingConvention', {
+                      ...formData.namingConvention,
+                      includeFormat: e.target.checked
+                    })}
+                  />
+                  <span className="text-sm">总是包含文件扩展名</span>
+                </label>
               </div>
             </div>
           </div>

@@ -47,6 +47,11 @@ declare module 'electron' {
     on(channel: string, listener: (event: any, ...args: any[]) => void): void;
   }
 
+  // Minimal stub for invoke event used in ipcMain.handle
+  export interface IpcMainInvokeEvent {
+    // In real Electron this includes sender, frameId, etc.
+  }
+
   export interface App {
     whenReady(): Promise<void>;
     on(event: string, listener: Function): void;

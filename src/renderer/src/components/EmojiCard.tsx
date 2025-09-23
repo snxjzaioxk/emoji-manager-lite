@@ -1,6 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { EmojiItem } from '../../../shared/types';
-import { HeartIcon, CopyIcon, TrashIcon, MoreVerticalIcon, FolderIcon, RefreshCwIcon } from 'lucide-react';
+import {
+  Heart as HeartIcon,
+  Copy as CopyIcon,
+  Trash as TrashIcon,
+  MoreVertical as MoreVerticalIcon,
+  Folder as FolderIcon,
+  RefreshCw as RefreshCwIcon,
+} from 'lucide-react';
 
 interface EmojiCardProps {
   emoji: EmojiItem;
@@ -22,6 +29,20 @@ export function EmojiCard({
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState(false);
   const [imgSrc, setImgSrc] = useState<string>('');
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showMenu]);
 
   const toFileSrc = (p: string) => {
     if (!p) return '';
@@ -61,7 +82,9 @@ export function EmojiCard({
   const handleToggleFavorite = async () => {
     try {
       await onUpdate({ isFavorite: !emoji.isFavorite });
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to toggle favorite:', error);
+    }
   };
 
   const handleOpenLocation = () => {
@@ -115,9 +138,9 @@ export function EmojiCard({
         >
           <MoreVerticalIcon size={14} />
         </button>
-        
+
         {showMenu && (
-          <div className="absolute right-0 top-full mt-1 bg-primary border border-border-color rounded shadow-lg z-20 min-w-32">
+          <div ref={menuRef} className="absolute right-0 top-full mt-1 bg-primary border border-border-color rounded shadow-lg z-20 min-w-32">
             <button
               onClick={handleCopy}
               disabled={loading}
@@ -188,7 +211,9 @@ export function EmojiCard({
               try {
                 const data = await window.electronAPI?.files?.readAsDataURL(emoji.storagePath);
                 if (data) setImgSrc(data);
-              } catch {}
+              } catch (error) {
+                console.warn('Failed to load image fallback:', error);
+              }
             }}
           />
         </div>

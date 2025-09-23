@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import { EmojiItem } from '../../../shared/types';
-import { HeartIcon, CopyIcon, TrashIcon, MoreVerticalIcon, FolderIcon, RefreshCwIcon } from 'lucide-react';
+import {
+  Heart as HeartIcon,
+  Copy as CopyIcon,
+  Trash as TrashIcon,
+  MoreVertical as MoreVerticalIcon,
+  Folder as FolderIcon,
+  RefreshCw as RefreshCwIcon,
+} from 'lucide-react';
 
 interface EmojiListItemProps {
   emoji: EmojiItem;
@@ -51,7 +58,9 @@ export function EmojiListItem({
   const handleToggleFavorite = async () => {
     try {
       await onUpdate({ isFavorite: !emoji.isFavorite });
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to toggle favorite:', error);
+    }
   };
 
   const handleOpenLocation = () => {
@@ -112,7 +121,9 @@ export function EmojiListItem({
             try {
               const data = await window.electronAPI?.files?.readAsDataURL(emoji.storagePath);
               if (data) setImgSrc(data);
-            } catch {}
+            } catch (error) {
+              console.warn('Failed to load image fallback:', error);
+            }
           }}
         />
       </div>

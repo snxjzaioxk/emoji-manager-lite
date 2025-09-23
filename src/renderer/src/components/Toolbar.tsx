@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SearchFilters } from '../../../shared/types';
-import { SearchIcon, GridIcon, ListIcon, FilterIcon } from 'lucide-react';
+import { Search as SearchIcon, Grid as GridIcon, List as ListIcon, Filter as FilterIcon } from 'lucide-react';
 
 interface ToolbarProps {
   onSearch: (keyword: string) => void;
@@ -25,7 +25,7 @@ export function Toolbar({
     onSearch(searchKeyword);
   };
 
-  const handleFilterChange = (key: keyof SearchFilters, value: any) => {
+  const handleFilterChange = (key: keyof SearchFilters, value: unknown) => {
     onFiltersChange({ ...searchFilters, [key]: value });
   };
 

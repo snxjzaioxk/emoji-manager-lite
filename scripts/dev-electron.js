@@ -30,6 +30,8 @@ function waitForPort(port, host = '127.0.0.1', timeoutMs = 60000, intervalMs = 3
   const start = Date.now();
   return new Promise((resolve, reject) => {
     const tryConnect = () => {
+      // Check if port 3001 is available instead of 3000 when Vite switches ports
+      const actualPort = port === 3000 ? (process.env.VITE_PORT || 3001) : port;
       const socket = new net.Socket();
       socket
         .once('connect', () => {
@@ -39,12 +41,12 @@ function waitForPort(port, host = '127.0.0.1', timeoutMs = 60000, intervalMs = 3
         .once('error', () => {
           socket.destroy();
           if (Date.now() - start > timeoutMs) {
-            reject(new Error(`Timed out waiting for port ${port}`));
+            reject(new Error(`Timed out waiting for port ${actualPort}`));
           } else {
             setTimeout(tryConnect, intervalMs);
           }
         })
-        .connect(port, host);
+        .connect(actualPort, host);
     };
     tryConnect();
   });

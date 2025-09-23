@@ -3,6 +3,42 @@ import { app } from 'electron';
 import { join } from 'path';
 import { EmojiItem, Category, AppSettings, SearchFilters } from '../shared/types';
 
+// Database row interfaces for type safety
+interface DatabaseEmojiRow {
+  id: string;
+  filename: string;
+  original_path: string;
+  storage_path: string;
+  format: string;
+  size: number;
+  width: number;
+  height: number;
+  tags: string | null;
+  category_id: string | null;
+  is_favorite: number;
+  usage_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface DatabaseCategoryRow {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  parent_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface DatabaseCountRow {
+  count: number;
+}
+
+interface DatabaseSettingRow {
+  value: string;
+}
+
 export class Database {
   private db: sqlite3.Database;
   private dbPath: string;
@@ -73,8 +109,8 @@ export class Database {
   }
 
   private initializeDefaultData(): void {
-    this.db.get("SELECT COUNT(*) as count FROM categories", (err: Error | null, row: any) => {
-      if (!err && row.count === 0) {
+    this.db.get("SELECT COUNT(*) as count FROM categories", (err: Error | null, row: DatabaseCountRow | undefined) => {
+      if (!err && row && row.count === 0) {
         const defaultCategories = [
           { id: 'default', name: '默认分类', description: '未分类的表情包' },
           { id: 'favorites', name: '收藏夹', description: '收藏的表情包' },
@@ -113,7 +149,7 @@ export class Database {
   async getEmojis(filters?: SearchFilters): Promise<EmojiItem[]> {
     return new Promise((resolve, reject) => {
       let query = "SELECT * FROM emojis WHERE 1=1";
-      const params: any[] = [];
+      const params: (string | number)[] = [];
 
       if (filters?.categoryId) {
         query += " AND category_id = ?";
@@ -178,7 +214,7 @@ export class Database {
         params.push(filters.limit);
       }
 
-      this.db.all(query, params, (err: Error | null, rows: any[]) => {
+      this.db.all(query, params, (err: Error | null, rows: DatabaseEmojiRow[]) => {
         if (err) {
           reject(err);
         } else {
@@ -194,13 +230,22 @@ export class Database {
                 tags = String(row.tags).split(',').map((t) => t.trim()).filter(Boolean);
               }
             }
-            return {
-              ...row,
-              tags,
-              isFavorite: Boolean(row.is_favorite),
-              createdAt: new Date(row.created_at),
-              updatedAt: new Date(row.updated_at)
-            } as any;
+              return {
+                id: row.id,
+                filename: row.filename,
+                originalPath: row.original_path,
+                storagePath: row.storage_path,
+                format: row.format,
+                size: row.size,
+                width: row.width,
+                height: row.height,
+                tags,
+                categoryId: row.category_id || undefined,
+                isFavorite: Boolean(row.is_favorite),
+                usageCount: row.usage_count,
+                createdAt: new Date(row.created_at),
+                updatedAt: new Date(row.updated_at)
+              } as EmojiItem;
           });
           resolve(emojis);
         }
@@ -239,7 +284,7 @@ export class Database {
       }).join(', ');
 
       const values = fields.map(field => {
-        const value = (updates as any)[field];
+        const value = updates[field as keyof Partial<EmojiItem>];
         if (field === 'tags') return JSON.stringify(value);
         if (field === 'isFavorite') return value ? 1 : 0;
         return value;
@@ -267,13 +312,16 @@ export class Database {
 
   async getCategories(): Promise<Category[]> {
     return new Promise((resolve, reject) => {
-      this.db.all("SELECT * FROM categories ORDER BY name", (err: Error | null, rows: any[]) => {
+      this.db.all("SELECT * FROM categories ORDER BY name", (err: Error | null, rows: DatabaseCategoryRow[]) => {
         if (err) {
           reject(err);
         } else {
           const categories = rows.map(row => ({
-            ...row,
-            parentId: row.parent_id,
+            id: row.id,
+            name: row.name,
+            description: row.description || undefined,
+            color: row.color || undefined,
+            parentId: row.parent_id || undefined,
             createdAt: new Date(row.created_at),
             updatedAt: new Date(row.updated_at)
           }));
@@ -298,8 +346,8 @@ export class Database {
 
   async updateCategory(id: string, updates: Partial<Omit<Category, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> {
     return new Promise((resolve, reject) => {
-      const allowed: Array<keyof typeof updates> = ['name', 'description', 'color', 'parentId'] as any;
-      const fields = Object.keys(updates || {}).filter((k) => (allowed as any).includes(k));
+      const allowed: Array<keyof Omit<Category, 'id' | 'createdAt' | 'updatedAt'>> = ['name', 'description', 'color', 'parentId'];
+      const fields = Object.keys(updates || {}).filter((k) => allowed.includes(k as keyof Omit<Category, 'id' | 'createdAt' | 'updatedAt'>));
       if (fields.length === 0) return resolve();
 
       const setClause = fields.map((field) => {
@@ -307,7 +355,7 @@ export class Database {
         return `${dbField} = ?`;
       }).join(', ');
 
-      const values = fields.map((field) => (updates as any)[field]);
+      const values = fields.map((field) => updates[field as keyof typeof updates]);
 
       this.db.run(
         `UPDATE categories SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
@@ -346,9 +394,9 @@ export class Database {
     });
   }
 
-  async getSetting(key: string): Promise<any> {
+  async getSetting(key: string): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      this.db.get("SELECT value FROM settings WHERE key = ?", [key], (err: Error | null, row: any) => {
+      this.db.get("SELECT value FROM settings WHERE key = ?", [key], (err: Error | null, row: DatabaseSettingRow | undefined) => {
         if (err) {
           reject(err);
         } else {
@@ -358,7 +406,7 @@ export class Database {
     });
   }
 
-  async setSetting(key: string, value: any): Promise<void> {
+  async setSetting(key: string, value: unknown): Promise<void> {
     return new Promise((resolve, reject) => {
       this.db.run(
         "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",

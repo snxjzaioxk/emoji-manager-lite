@@ -1,13 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { EmojiGrid } from './components/EmojiGrid';
 import { Toolbar } from './components/Toolbar';
 import { ImportDialog } from './components/ImportDialog';
 import { SettingsDialog } from './components/SettingsDialog';
-import { EmojiItem, Category, SearchFilters, AppSettings } from '../../shared/types';
+import { EmojiItem, Category, SearchFilters, AppSettings, ImportOptions } from '../../shared/types';
 
 // 模拟 electronAPI 用于测试
-const mockElectronAPI = {
+interface MockElectronAPI {
+  categories: {
+    getAll: () => Promise<Category[]>;
+  };
+  emojis: {
+    getAll: (filters?: SearchFilters) => Promise<EmojiItem[]>;
+    update: (id: string, updates: Partial<EmojiItem>) => Promise<void>;
+    delete: (id: string) => Promise<void>;
+    import: (options: ImportOptions) => Promise<{ success: number; failed: number; duplicates: number }>;
+    copyToClipboard: (filePath: string) => Promise<void>;
+  };
+  files: {
+    selectFolder: () => Promise<string | null>;
+    selectFiles: () => Promise<string[]>;
+    openLocation: (filePath: string) => Promise<boolean>;
+  };
+  settings: {
+    get: (key: string) => Promise<unknown>;
+    set: (key: string, value: unknown) => Promise<void>;
+  };
+}
+
+const mockElectronAPI: MockElectronAPI = {
   categories: {
     getAll: () => Promise.resolve([
       { id: 'default', name: '默认分类', description: '未分类的表情包', createdAt: new Date(), updatedAt: new Date() },
@@ -19,17 +41,17 @@ const mockElectronAPI = {
     getAll: (_filters?: SearchFilters) => Promise.resolve([]),
     update: (_id: string, _updates: Partial<EmojiItem>) => Promise.resolve(),
     delete: (_id: string) => Promise.resolve(),
-    import: (_options: any) => Promise.resolve({ success: 0, failed: 0, duplicates: 0 }),
+    import: (_options: ImportOptions) => Promise.resolve({ success: 0, failed: 0, duplicates: 0 }),
     copyToClipboard: (_filePath: string) => Promise.resolve()
   },
   files: {
     selectFolder: () => Promise.resolve(null),
     selectFiles: () => Promise.resolve([]),
-    openLocation: (_filePath: string) => Promise.resolve()
+    openLocation: (_filePath: string) => Promise.resolve(false)
   },
   settings: {
     get: (key: string) => {
-      const defaults: any = {
+      const defaults: Record<string, unknown> = {
         defaultImportPath: 'C:\\Users\\Pictures',
         defaultExportPath: 'C:\\Users\\Pictures',
         storageLocation: 'C:\\Users\\AppData\\emojis',
@@ -37,18 +59,27 @@ const mockElectronAPI = {
         viewMode: 'grid',
         thumbnailSize: 'medium',
         autoBackup: true,
-        maxStorageSize: 1024 * 1024 * 1024
+        maxStorageSize: 1024 * 1024 * 1024,
+        recentLimit: 100,
+        namingConvention: {
+          pattern: '{name}_{timestamp}',
+          useOriginalName: true,
+          includeTimestamp: true,
+          includeFormat: true,
+          customPrefix: '',
+          customSuffix: ''
+        }
       };
       return Promise.resolve(defaults[key]);
     },
-    set: (_key: string, _value: any) => Promise.resolve()
+    set: (_key: string, _value: unknown) => Promise.resolve()
   }
 };
 
 // 设置模拟 API（仅在未由 preload 注入时）
-// 使用 any 避免与全局类型声明冲突
-if (typeof window !== 'undefined' && !(window as any).electronAPI) {
-  Object.defineProperty(window, 'electronAPI', { value: mockElectronAPI as any });
+// 使用类型断言避免与全局类型声明冲突
+if (typeof window !== 'undefined' && !(window as unknown as { electronAPI?: MockElectronAPI }).electronAPI) {
+  Object.defineProperty(window, 'electronAPI', { value: mockElectronAPI });
 }
 
 function App() {
@@ -62,21 +93,13 @@ function App() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadInitialData();
-  }, []);
-
-  useEffect(() => {
-    loadEmojis();
-  }, [selectedCategory, searchFilters]);
-
-  const loadInitialData = async () => {
+  const loadInitialData = useCallback(async () => {
     try {
       const [categoriesData, settingsData] = await Promise.all([
         window.electronAPI?.categories?.getAll() || Promise.resolve([]),
         loadSettings()
       ]);
-      
+
       setCategories(categoriesData);
       setSettings(settingsData);
       setViewMode(settingsData.viewMode || 'grid');
@@ -85,15 +108,15 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const loadSettings = async (): Promise<AppSettings> => {
     const keys = [
       'defaultImportPath', 'defaultExportPath', 'storageLocation',
-      'theme', 'viewMode', 'thumbnailSize', 'autoBackup', 'maxStorageSize', 'recentLimit'
+      'theme', 'viewMode', 'thumbnailSize', 'autoBackup', 'maxStorageSize', 'recentLimit', 'namingConvention'
     ];
     
-    const settingsData: any = {};
+    const settingsData: Record<string, unknown> = {};
     
     for (const key of keys) {
       try {
@@ -106,33 +129,41 @@ function App() {
       }
     }
     
-    return settingsData as AppSettings;
+    return settingsData as unknown as AppSettings;
   };
 
-  const loadEmojis = async () => {
+  const loadEmojis = useCallback(async () => {
     try {
       const filters: SearchFilters = { ...searchFilters };
       if (selectedCategory === 'favorites') {
-        delete (filters as any).categoryId;
+        delete (filters as { categoryId?: string }).categoryId;
         filters.isFavorite = true;
       } else if (selectedCategory === 'recent') {
-        delete (filters as any).categoryId;
+        delete (filters as { categoryId?: string }).categoryId;
         filters.sortBy = 'updatedAt';
         filters.sortOrder = 'DESC';
         filters.limit = settings?.recentLimit || 100;
       } else if (selectedCategory && selectedCategory !== '') {
         filters.categoryId = selectedCategory;
       } else {
-        delete (filters as any).categoryId;
+        delete (filters as { categoryId?: string }).categoryId;
       }
-      
+
       const emojisData = await window.electronAPI.emojis.getAll(filters) || [];
       setEmojis(emojisData);
     } catch (error) {
       console.error('Failed to load emojis:', error);
       setEmojis([]);
     }
-  };
+  }, [selectedCategory, searchFilters, settings?.recentLimit]);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  useEffect(() => {
+    loadEmojis();
+  }, [loadEmojis]);
 
   const handleSearch = (keyword: string) => {
     setSearchFilters(prev => ({ ...prev, keyword }));

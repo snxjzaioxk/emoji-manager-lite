@@ -1,14 +1,15 @@
 {
   "name": "emoji-manager-lite",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "本地表情包管理器 - 专为电脑用户设计的本地表情包管理工具",
-  "main": "dist/main/main.js",
+  "main": "dist/main/main/main.js",
   "scripts": {
     "dev:renderer": "vite",
     "build:renderer": "vite build",
     "build:main": "tsc --project tsconfig.main.json",
     "build": "npm run build:main && npm run build:renderer",
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\" \"npm run dev:electron\"",
+    "dev:quiet": "set NODE_NO_WARNINGS=1 && npm run dev",
     "dev:main": "tsc --project tsconfig.main.json --watch",
     "dev:electron": "node scripts/dev-electron.js",
     "rebuild:native": "electron-rebuild -f -w sqlite3,sharp",
@@ -86,9 +87,12 @@
       "signAndEditExecutable": false
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": false
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Emoji Manager Lite"
     },
     "portable": {
       "artifactName": "Emoji-Manager-Lite-Portable-${version}.${ext}"

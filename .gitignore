@@ -18,6 +18,10 @@ build/
 assets/icon.ico
 assets/icon.icns
 
+# Compiled TypeScript files in src
+src/**/*.js
+src/**/*.js.map
+
 # Environment variables
 .env
 .env.local
