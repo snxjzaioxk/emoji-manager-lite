@@ -200,6 +200,11 @@ body {
 
 .overflow-hidden { overflow: hidden; }
 .overflow-auto { overflow: auto; }
+.overflow-y-auto {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
 
 .select-none { user-select: none; }
 
