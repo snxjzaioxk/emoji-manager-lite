@@ -8,7 +8,8 @@ const path = require('path');
 const net = require('net');
 const { spawn } = require('child_process');
 
-const distMain = path.resolve(__dirname, '..', 'dist', 'main', 'main.js');
+// Match TypeScript outDir structure: dist/main + preserved src path (main/main.js)
+const distMain = path.resolve(__dirname, '..', 'dist', 'main', 'main', 'main.js');
 const electronBin = require('electron');
 
 function waitForFile(filePath, timeoutMs = 60000, intervalMs = 250) {
@@ -26,38 +27,46 @@ function waitForFile(filePath, timeoutMs = 60000, intervalMs = 250) {
   });
 }
 
-function waitForPort(port, host = '127.0.0.1', timeoutMs = 60000, intervalMs = 300) {
+function waitForAnyPort(ports, host = '127.0.0.1', timeoutMs = 60000, intervalMs = 300) {
   const start = Date.now();
   return new Promise((resolve, reject) => {
-    const tryConnect = () => {
-      // Check if port 3001 is available instead of 3000 when Vite switches ports
-      const actualPort = port === 3000 ? (process.env.VITE_PORT || 3001) : port;
-      const socket = new net.Socket();
-      socket
-        .once('connect', () => {
-          socket.destroy();
-          resolve();
-        })
-        .once('error', () => {
-          socket.destroy();
-          if (Date.now() - start > timeoutMs) {
-            reject(new Error(`Timed out waiting for port ${actualPort}`));
-          } else {
-            setTimeout(tryConnect, intervalMs);
-          }
-        })
-        .connect(actualPort, host);
+    const tryPorts = () => {
+      const elapsed = Date.now() - start;
+      if (elapsed > timeoutMs) return reject(new Error(`Timed out waiting for dev server on ${ports.join(', ')}`));
+
+      let remaining = ports.length;
+      let resolved = false;
+
+      for (const p of ports) {
+        const socket = new net.Socket();
+        socket
+          .once('connect', () => {
+            if (!resolved) {
+              resolved = true;
+              socket.destroy();
+              resolve(p);
+            }
+          })
+          .once('error', () => {
+            socket.destroy();
+            remaining -= 1;
+            if (remaining === 0 && !resolved) {
+              setTimeout(tryPorts, intervalMs);
+            }
+          })
+          .connect(p, host);
+      }
     };
-    tryConnect();
+    tryPorts();
   });
 }
 
 (async () => {
   try {
-    await Promise.all([
-      waitForFile(distMain),
-      waitForPort(3000),
-    ]);
+    await waitForFile(distMain);
+    // Vite defaults to 3000; allow fallback ports similar to main.ts
+    const vitePort = Number(process.env.VITE_PORT) || undefined;
+    await waitForAnyPort([vitePort || 3000, 3001, 3002, 3003]);
 
     const child = spawn(electronBin, [distMain], {
       stdio: 'inherit',
@@ -74,4 +83,3 @@ function waitForPort(port, host = '127.0.0.1', timeoutMs = 60000, intervalMs = 3
     process.exit(1);
   }
 })();
-

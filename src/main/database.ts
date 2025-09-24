@@ -146,6 +146,49 @@ export class Database {
     });
   }
 
+  async getEmoji(id: string): Promise<EmojiItem | null> {
+    return new Promise((resolve, reject) => {
+      this.db.get(
+        "SELECT * FROM emojis WHERE id = ?",
+        [id],
+        (err, row: any) => {
+          if (err) {
+            reject(err);
+          } else if (!row) {
+            resolve(null);
+          } else {
+            let tags: string[] = [];
+            if (row.tags) {
+              try {
+                const parsed = JSON.parse(row.tags);
+                if (Array.isArray(parsed)) tags = parsed;
+                else if (typeof parsed === 'string') tags = parsed.split(',').map((t: string) => t.trim()).filter(Boolean);
+              } catch {
+                tags = String(row.tags).split(',').map((t: string) => t.trim()).filter(Boolean);
+              }
+            }
+            resolve({
+              id: row.id,
+              filename: row.filename,
+              originalPath: row.original_path,
+              storagePath: row.storage_path,
+              format: row.format,
+              size: row.size,
+              width: row.width,
+              height: row.height,
+              tags,
+              categoryId: row.category_id || undefined,
+              isFavorite: Boolean(row.is_favorite),
+              usageCount: row.usage_count,
+              createdAt: new Date(row.created_at),
+              updatedAt: new Date(row.updated_at)
+            });
+          }
+        }
+      );
+    });
+  }
+
   async getEmojis(filters?: SearchFilters): Promise<EmojiItem[]> {
     return new Promise((resolve, reject) => {
       let query = "SELECT * FROM emojis WHERE 1=1";
@@ -225,8 +268,9 @@ export class Database {
                 const parsed = JSON.parse(row.tags);
                 if (Array.isArray(parsed)) tags = parsed;
                 else if (typeof parsed === 'string') tags = parsed.split(',').map((t) => t.trim()).filter(Boolean);
-              } catch {
-                // fallback for legacy comma-separated tags
+              } catch (parseError) {
+                // fallback for legacy comma-separated tags or invalid JSON
+                console.warn(`Failed to parse tags for emoji ${row.id}, using fallback:`, parseError);
                 tags = String(row.tags).split(',').map((t) => t.trim()).filter(Boolean);
               }
             }
@@ -419,7 +463,18 @@ export class Database {
     });
   }
 
-  close(): void {
-    this.db.close();
+  close(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      // Wait for all pending operations to complete
+      this.db.wait(() => {
+        this.db.close((err) => {
+          if (err) {
+            reject(new Error(`Failed to close database: ${err.message}`));
+          } else {
+            resolve();
+          }
+        });
+      });
+    });
   }
 }

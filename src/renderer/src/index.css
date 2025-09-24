@@ -186,12 +186,14 @@ body {
 .text-sm { font-size: 12px; }
 .text-lg { font-size: 18px; }
 .text-xl { font-size: 20px; }
+.text-6xl { font-size: 3.75rem; line-height: 1; }
 
 .font-medium { font-weight: 500; }
 .font-semibold { font-weight: 600; }
 
 .text-muted { color: var(--text-muted); }
 .text-secondary { color: var(--text-secondary); }
+.text-gray-500 { color: #6b7280; }
 
 .w-full { width: 100%; }
 .h-full { height: 100%; }

@@ -149,7 +149,9 @@ function App() {
         delete (filters as { categoryId?: string }).categoryId;
       }
 
-      const emojisData = await window.electronAPI.emojis.getAll(filters) || [];
+      const emojisData = window.electronAPI?.emojis
+        ? await window.electronAPI.emojis.getAll(filters) || []
+        : [];
       setEmojis(emojisData);
     } catch (error) {
       console.error('Failed to load emojis:', error);
@@ -174,6 +176,10 @@ function App() {
   };
 
   const handleEmojiUpdate = async (id: string, updates: Partial<EmojiItem>) => {
+    if (!window.electronAPI?.emojis) {
+      console.error('Electron API not available');
+      return;
+    }
     try {
       await window.electronAPI.emojis.update(id, updates);
       await loadEmojis();
@@ -183,6 +189,10 @@ function App() {
   };
 
   const handleEmojiDelete = async (id: string) => {
+    if (!window.electronAPI?.emojis) {
+      console.error('Electron API not available');
+      return;
+    }
     try {
       await window.electronAPI.emojis.delete(id);
       await loadEmojis();
@@ -197,6 +207,10 @@ function App() {
   };
 
   const handleSettingsUpdate = async (newSettings: Partial<AppSettings>) => {
+    if (!window.electronAPI?.settings) {
+      console.error('Electron API not available');
+      return;
+    }
     try {
       for (const [key, value] of Object.entries(newSettings)) {
         await window.electronAPI.settings.set(key, value);

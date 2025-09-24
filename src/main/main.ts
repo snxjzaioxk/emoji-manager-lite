@@ -77,9 +77,19 @@ class EmojiManagerApp {
     });
 
     ipcMain.handle('delete-emoji', async (_event: IpcMainInvokeEvent, id: string) => {
-      // Delete file first while DB record still exists (to find storagePath), then remove DB row
-      await this.fileManager.deleteEmojiFile(id);
-      await this.database.deleteEmoji(id);
+      // Use transaction-like approach to ensure consistency
+      try {
+        const emoji = await this.database.getEmoji(id);
+        if (emoji) {
+          // Delete file first
+          await this.fileManager.deleteEmojiFile(id);
+          // Then remove DB record
+          await this.database.deleteEmoji(id);
+        }
+      } catch (error) {
+        // If file deletion fails, don't delete from DB
+        throw new Error(`Failed to delete emoji: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     });
 
     ipcMain.handle('get-categories', async (_event: IpcMainInvokeEvent) => {
@@ -108,14 +118,20 @@ class EmojiManagerApp {
     });
 
     ipcMain.handle('select-folder', async (_event: IpcMainInvokeEvent) => {
-      const result = await dialog.showOpenDialog(this.mainWindow!, {
+      if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+        throw new Error('Main window is not available');
+      }
+      const result = await dialog.showOpenDialog(this.mainWindow, {
         properties: ['openDirectory']
       });
       return result.canceled ? null : result.filePaths[0];
     });
 
     ipcMain.handle('select-files', async (_event: IpcMainInvokeEvent) => {
-      const result = await dialog.showOpenDialog(this.mainWindow!, {
+      if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+        throw new Error('Main window is not available');
+      }
+      const result = await dialog.showOpenDialog(this.mainWindow, {
         properties: ['openFile', 'multiSelections'],
         filters: [
           { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'] }
@@ -131,7 +147,20 @@ class EmojiManagerApp {
     ipcMain.handle('open-file-location', async (_: unknown, filePath?: string) => {
       try {
         if (!filePath) return false;
-        const nativePath = filePath.startsWith('file:') ? fileURLToPath(filePath) : filePath;
+        // Enhanced Windows path handling
+        let nativePath: string;
+        if (filePath.startsWith('file:')) {
+          try {
+            nativePath = fileURLToPath(filePath);
+          } catch {
+            // Fallback for invalid file URLs
+            nativePath = filePath.replace(/^file:\/\/\//, '').replace(/^file:\/\//, '');
+          }
+        } else {
+          nativePath = filePath;
+        }
+
+        // Handle Windows special characters
         const finalPath = isAbsolute(nativePath) ? normalize(nativePath) : nativePath;
         shell.showItemInFolder(finalPath);
         return true;
@@ -175,14 +204,24 @@ class EmojiManagerApp {
       }
     });
 
-    app.on('window-all-closed', () => {
+    app.on('window-all-closed', async () => {
       if (process.platform !== 'darwin') {
-        this.database.close();
-        app.quit();
+        try {
+          await this.database.close();
+        } catch (error) {
+          console.error('Failed to close database properly:', error);
+        } finally {
+          app.quit();
+        }
       }
     });
   }
 }
 
 const emojiApp = new EmojiManagerApp();
-emojiApp.initialize().catch(console.error);
+emojiApp.initialize().catch((error) => {
+  console.error('Failed to initialize application:', error);
+  dialog.showErrorBox('Initialization Error',
+    `Failed to start Emoji Manager: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  app.quit();
+});

@@ -8,10 +8,29 @@ import { EmojiItem, ImportOptions, ExportOptions, AppSettings } from '../shared/
 import { fileURLToPath } from 'url';
 type NamingConvention = AppSettings['namingConvention'];
 
+// Track temporary files for cleanup
+const tempFiles = new Set<string>();
+
+// Cleanup temporary files on exit
+process.on('exit', () => {
+  for (const file of tempFiles) {
+    try {
+      if (existsSync(file)) {
+        fs.unlink(file).catch(() => {
+          // Silently ignore cleanup errors
+        });
+      }
+    } catch {
+      // Silently ignore errors
+    }
+  }
+});
+
 export class FileManager {
   private storageDir: string;
   private database: Database;
   private storageDirInitialized = false;
+  private initializationPromise: Promise<void> | null = null;
 
   constructor(database: Database) {
     this.database = database;
@@ -26,21 +45,41 @@ export class FileManager {
   }
 
   private async refreshStorageDir(): Promise<void> {
-    try {
-      const configured = await this.database.getSetting('storageLocation');
-      if (configured && typeof configured === 'string' && configured !== this.storageDir) {
-        this.storageDir = configured;
-      }
-    } catch (_e) {
-      // fallback to default already set
+    // Prevent concurrent initialization
+    if (this.initializationPromise) {
+      return this.initializationPromise;
     }
-    this.ensureStorageDir();
-    this.storageDirInitialized = true;
+
+    this.initializationPromise = (async () => {
+      try {
+        const configured = await this.database.getSetting('storageLocation');
+        if (configured && typeof configured === 'string' && configured !== this.storageDir) {
+          this.storageDir = configured;
+        }
+      } catch (_e) {
+        // fallback to default already set
+      }
+      this.ensureStorageDir();
+      this.storageDirInitialized = true;
+    })();
+
+    return this.initializationPromise;
   }
 
   private toNativePath(p: string): string {
     if (!p) return p;
-    return p.startsWith('file:') ? fileURLToPath(p) : p;
+    // Handle Windows UNC paths
+    if (p.startsWith('\\\\')) return p;
+    // Handle file URLs
+    if (p.startsWith('file:')) {
+      try {
+        return fileURLToPath(p);
+      } catch {
+        // If conversion fails, return original
+        return p;
+      }
+    }
+    return p;
   }
 
   async importEmojis(options: ImportOptions): Promise<{ success: number; failed: number; duplicates: number }> {
@@ -318,6 +357,9 @@ export class FileManager {
       const filename = this.generateConvertedFilename(originalName, target, namingSettings);
       const outputPath = join(tmpDir, filename);
 
+      // Track temp file for cleanup
+      tempFiles.add(outputPath);
+
       let pipeline = sharp(src);
       switch (target) {
         case 'jpg':
@@ -333,6 +375,11 @@ export class FileManager {
       }
       try {
         await pipeline.toFile(outputPath);
+        // Schedule cleanup after 15 minutes
+        setTimeout(() => {
+          tempFiles.delete(outputPath);
+          fs.unlink(outputPath).catch(() => {});
+        }, 15 * 60 * 1000);
         return outputPath;
       } catch (sharpErr) {
         // Fallback: try Electron nativeImage for png/jpeg
@@ -341,6 +388,11 @@ export class FileManager {
             const img = nativeImage.createFromPath(src);
             const buf = target === 'png' ? img.toPNG() : img.toJPEG(90);
             await fs.writeFile(outputPath, buf);
+            // Schedule cleanup after 15 minutes
+            setTimeout(() => {
+              tempFiles.delete(outputPath);
+              fs.unlink(outputPath).catch(() => {});
+            }, 15 * 60 * 1000);
             return outputPath;
           } catch (_fallbackErr) {
             throw sharpErr;
