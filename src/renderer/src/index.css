@@ -234,7 +234,7 @@ body {
 .max-w-2xl { max-width: 42rem; }
 .max-w-full { max-width: 100%; }
 .max-h-full { max-height: 100%; }
-.max-h-[90vh] { max-height: 90vh; }
+.max-h-90vh { max-height: 90vh; }
 
 .space-y-2 > * + * { margin-top: 0.5rem; }
 .space-y-4 > * + * { margin-top: 1rem; }
@@ -328,3 +328,15 @@ body {
 
 .rounded { border-radius: var(--radius); }
 .rounded-lg { border-radius: var(--radius-lg); }
+
+/* Responsive breakpoints */
+@media (min-width: 768px) {
+  .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .md\:max-w-2xl { max-width: 42rem; }
+}
+
+@media (max-width: 767px) {
+  .max-w-2xl { max-width: 95vw; }
+  .p-4 { padding: 12px; }
+  .space-y-6 > * + * { margin-top: 1rem; }
+}
