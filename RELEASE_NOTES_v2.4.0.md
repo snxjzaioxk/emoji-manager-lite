@@ -57,7 +57,3 @@
 
 ## 🙏 致谢
 感谢所有用户的反馈和支持！
-
----
-🤖 Generated with Claude Code
-Co-Authored-By: Claude <noreply@anthropic.com>
