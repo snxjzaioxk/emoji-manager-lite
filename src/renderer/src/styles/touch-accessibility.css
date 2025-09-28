@@ -1,0 +1,130 @@
+/**
+ * 触控设备兼容性改进的CSS样式
+ */
+
+/* 确保触摸目标至少44px，符合辅助功能标准 */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* 为小按钮添加更大的点击区域 */
+.btn-touch {
+  position: relative;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.btn-touch:before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 44px;
+  min-height: 44px;
+  z-index: -1;
+}
+
+/* 为菜单按钮增加触控友好的大小 */
+.menu-trigger-touch {
+  padding: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 触控设备上始终显示控制元素 */
+@media (hover: none) and (pointer: coarse) {
+  /* 在触控设备上，操作按钮始终可见 */
+  .group .group-hover\\:opacity-100 {
+    opacity: 1 !important;
+  }
+
+  /* 确保菜单按钮在触控设备上可点击 */
+  .btn:disabled {
+    pointer-events: auto;
+    opacity: 0.6;
+  }
+
+  /* 触控设备上的特殊样式 */
+  .card {
+    padding: 16px; /* 增加内边距，更容易点击 */
+  }
+
+  /* 图片容器在触控设备上的改进 */
+  .image-container {
+    border: 2px solid transparent;
+    transition: border-color 0.2s ease;
+  }
+
+  .image-container:focus {
+    border-color: var(--accent-color, #3b82f6);
+    outline: none;
+  }
+
+  /* 触控设备上的悬停效果替换为点击效果 */
+  .image-container:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+}
+
+/* 为触控设备优化的菜单样式 */
+@media (hover: none) {
+  .context-menu {
+    min-width: 200px;
+    padding: 8px 0;
+  }
+
+  .context-menu button {
+    min-height: 48px;
+    padding: 12px 16px;
+    font-size: 16px;
+  }
+
+  .context-menu button:active {
+    background-color: var(--bg-secondary, #f3f4f6);
+  }
+}
+
+/* 响应式字体大小 */
+@media (max-width: 768px) {
+  .card .text-sm {
+    font-size: 16px; /* 在移动设备上使用更大的字体 */
+  }
+
+  .card .text-xs {
+    font-size: 14px;
+  }
+}
+
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+  .card {
+    border: 2px solid;
+  }
+
+  .btn {
+    border: 2px solid;
+  }
+
+  .image-container:focus {
+    border-width: 3px;
+  }
+}
+
+/* 减动效模式支持 */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .image-container:active {
+    transform: none;
+  }
+}

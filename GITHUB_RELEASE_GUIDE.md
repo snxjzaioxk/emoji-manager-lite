@@ -8,20 +8,20 @@ GitHub Release 会自动包含两个源代码文件：
 
 这些是基于你的 git tag 自动生成的，不需要手动上传。
 
-## 创建 v2.1.0 Release 的步骤
+## 创建 v2.3.0 Release 的步骤
 
 ### 方法 1: 通过 GitHub 网页界面
 
 1. 访问: https://github.com/snxjzaioxk/emoji-manager-lite/releases/new
 
 2. 填写信息：
-   - **Choose a tag**: 选择 `v2.1.0`
-   - **Release title**: `Emoji Manager Lite v2.1.0`
-   - **Description**: 复制 `RELEASE_NOTES_v2.1.0.md` 的内容
+   - **Choose a tag**: 选择 `v2.3.0`
+   - **Release title**: `Emoji Manager Lite v2.3.0`
+   - **Description**: 复制 `RELEASE_NOTES_v2.3.0.md` 的内容
 
 3. 上传文件（从 `release` 文件夹）：
-   - `Emoji-Manager-Lite-Setup-2.1.0.exe` (102MB)
-   - `Emoji-Manager-Lite-Portable-2.1.0.exe` (85MB)
+   - `Emoji-Manager-Lite-Setup-2.3.0.exe` (102MB)
+   - `Emoji-Manager-Lite-Portable-2.3.0.exe` (85MB)
 
 4. 设置选项：
    - ✅ Set as the latest release
@@ -42,11 +42,11 @@ scoop install gh
 gh auth login
 
 # 创建 Release
-gh release create v2.1.0 \
-  --title "Emoji Manager Lite v2.1.0" \
-  --notes-file RELEASE_NOTES_v2.1.0.md \
-  ./release/Emoji-Manager-Lite-Setup-2.1.0.exe \
-  ./release/Emoji-Manager-Lite-Portable-2.1.0.exe
+gh release create v2.3.0 \
+  --title "Emoji Manager Lite v2.3.0" \
+  --notes-file RELEASE_NOTES_v2.3.0.md \
+  ./release/Emoji-Manager-Lite-Setup-2.3.0.exe \
+  ./release/Emoji-Manager-Lite-Portable-2.3.0.exe
 ```
 
 ### 方法 3: 使用 curl 和 GitHub API
@@ -64,9 +64,9 @@ curl -X POST \
   -H "Accept: application/vnd.github.v3+json" \
   https://api.github.com/repos/snxjzaioxk/emoji-manager-lite/releases \
   -d '{
-    "tag_name": "v2.1.0",
-    "name": "Emoji Manager Lite v2.1.0",
-    "body": "在这里粘贴 RELEASE_NOTES_v2.1.0.md 的内容",
+    "tag_name": "v2.3.0",
+    "name": "Emoji Manager Lite v2.3.0",
+    "body": "在这里粘贴 RELEASE_NOTES_v2.3.0.md 的内容",
     "draft": false,
     "prerelease": false
   }'
@@ -88,8 +88,8 @@ curl -X POST \
 确认包含：
 - ✅ Source code (zip) - 自动生成
 - ✅ Source code (tar.gz) - 自动生成
-- ✅ Emoji-Manager-Lite-Setup-2.1.0.exe - 手动上传
-- ✅ Emoji-Manager-Lite-Portable-2.1.0.exe - 手动上传
+- ✅ Emoji-Manager-Lite-Setup-2.3.0.exe - 手动上传
+- ✅ Emoji-Manager-Lite-Portable-2.3.0.exe - 手动上传
 
 ## 注意事项
 

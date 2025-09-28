@@ -1,4 +1,4 @@
-# Emoji Manager Lite v2.1.0
+# Emoji Manager Lite v2.3.0
 
 一款专为电脑用户设计的本地表情包管理工具，支持表情包的统一存储、分类和管理功能。
 

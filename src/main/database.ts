@@ -151,7 +151,7 @@ export class Database {
       this.db.get(
         "SELECT * FROM emojis WHERE id = ?",
         [id],
-        (err, row: any) => {
+        (err, row: DatabaseEmojiRow | undefined) => {
           if (err) {
             reject(err);
           } else if (!row) {

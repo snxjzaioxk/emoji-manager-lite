@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { EmojiItem } from '../../../shared/types';
 import {
   Heart as HeartIcon,
@@ -12,21 +12,26 @@ import {
 interface EmojiListItemProps {
   emoji: EmojiItem;
   selected: boolean;
+  selectionMode: boolean;
   onSelect: (selected: boolean) => void;
   onUpdate: (updates: Partial<EmojiItem>) => void;
   onDelete: () => void;
+  onPreview: () => void;
 }
 
-export function EmojiListItem({ 
-  emoji, 
-  selected, 
-  onSelect, 
-  onUpdate, 
-  onDelete 
+export function EmojiListItem({
+  emoji,
+  selected,
+  selectionMode,
+  onSelect,
+  onUpdate,
+  onDelete,
+  onPreview
 }: EmojiListItemProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState(false);
   const [imgSrc, setImgSrc] = useState<string>('');
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const toFileSrc = (p: string) => {
     if (!p) return '';
@@ -42,6 +47,19 @@ export function EmojiListItem({
   React.useEffect(() => {
     setImgSrc(toFileSrc(emoji.storagePath));
   }, [emoji.storagePath]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showMenu]);
 
   const handleCopy = async () => {
     setLoading(true);
@@ -104,19 +122,30 @@ export function EmojiListItem({
     <div className={`card p-4 flex items-center gap-4 relative group ${
       selected ? 'ring-2 ring-accent-color' : ''
     }`}>
-      <input
-        type="checkbox"
-        checked={selected}
-        onChange={(e) => onSelect(e.target.checked)}
-        className="flex-shrink-0"
-      />
+      {selectionMode && (
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={(e) => onSelect(e.target.checked)}
+          className="flex-shrink-0"
+        />
+      )}
 
-      <div className="w-16 h-16 flex-shrink-0 overflow-hidden rounded bg-bg-tertiary flex items-center justify-center">
+      <div
+        className="w-16 h-16 flex-shrink-0 overflow-hidden rounded bg-bg-tertiary flex items-center justify-center cursor-pointer"
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setShowMenu(true);
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          onPreview();
+        }}
+      >
         <img
           src={imgSrc}
           alt={emoji.filename}
-          className="max-w-full max-h-full object-contain cursor-pointer"
-          onDoubleClick={handleCopy}
+          className="max-w-full max-h-full object-contain"
           onError={async () => {
             try {
               const data = await window.electronAPI?.files?.readAsDataURL(emoji.storagePath);
@@ -165,15 +194,19 @@ export function EmojiListItem({
       <div className="flex-shrink-0 relative">
         <button
           onClick={() => setShowMenu(!showMenu)}
-          className="btn btn-ghost btn-sm opacity-0 group-hover:opacity-100 transition"
+          className={`btn btn-ghost btn-sm ${selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition`}
+          disabled={!selectionMode}
         >
           <MoreVerticalIcon size={16} />
         </button>
         
         {showMenu && (
-          <div className="absolute right-0 top-full mt-1 bg-primary border border-border-color rounded shadow-lg z-20 min-w-32">
+          <div ref={menuRef} className="absolute right-0 top-full mt-1 bg-primary border border-border-color rounded shadow-lg z-20 min-w-32">
             <button
-              onClick={handleCopy}
+              onClick={() => {
+                handleCopy();
+                setShowMenu(false);
+              }}
               disabled={loading}
               className="w-full px-3 py-2 text-left text-sm hover:bg-secondary flex items-center gap-2"
             >
@@ -181,7 +214,10 @@ export function EmojiListItem({
               复制
             </button>
             <button
-              onClick={handleToggleFavorite}
+              onClick={() => {
+                handleToggleFavorite();
+                setShowMenu(false);
+              }}
               className="w-full px-3 py-2 text-left text-sm hover:bg-secondary flex items-center gap-2"
             >
               <HeartIcon 
@@ -191,7 +227,10 @@ export function EmojiListItem({
               {emoji.isFavorite ? '取消收藏' : '收藏'}
             </button>
             <button
-              onClick={handleOpenLocation}
+              onClick={() => {
+                handleOpenLocation();
+                setShowMenu(false);
+              }}
               className="w-full px-3 py-2 text-left text-sm hover:bg-secondary flex items-center gap-2"
             >
               <FolderIcon size={14} />
@@ -200,28 +239,40 @@ export function EmojiListItem({
             <div className="border-t border-border-color mt-1 mb-1" />
             <div className="px-3 py-2 text-xs text-secondary">转换格式为</div>
             <button
-              onClick={() => handleConvertFormat('jpg')}
+              onClick={() => {
+                handleConvertFormat('jpg');
+                setShowMenu(false);
+              }}
               disabled={loading}
               className="w-full px-3 py-2 text-left text-sm hover:bg-secondary flex items-center gap-2"
             >
               <RefreshCwIcon size={14} /> JPG
             </button>
             <button
-              onClick={() => handleConvertFormat('png')}
+              onClick={() => {
+                handleConvertFormat('png');
+                setShowMenu(false);
+              }}
               disabled={loading}
               className="w-full px-3 py-2 text-left text-sm hover:bg-secondary flex items-center gap-2"
             >
               <RefreshCwIcon size={14} /> PNG
             </button>
             <button
-              onClick={() => handleConvertFormat('webp')}
+              onClick={() => {
+                handleConvertFormat('webp');
+                setShowMenu(false);
+              }}
               disabled={loading}
               className="w-full px-3 py-2 text-left text-sm hover:bg-secondary flex items-center gap-2"
             >
               <RefreshCwIcon size={14} /> WebP
             </button>
             <button
-              onClick={onDelete}
+              onClick={() => {
+                onDelete();
+                setShowMenu(false);
+              }}
               className="w-full px-3 py-2 text-left text-sm hover:bg-secondary text-red-500 flex items-center gap-2"
             >
               <TrashIcon size={14} />
