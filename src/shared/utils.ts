@@ -20,17 +20,35 @@ export const toFileURL = (path: string): string => {
     return path;
   }
 
-  // 规范化路径分隔符
-  const normalized = path.replace(/\\/g, '/');
-
   try {
-    // 验证路径是否为绝对路径
-    if (!normalized.startsWith('/') && !normalized.match(/^[a-zA-Z]:/)) {
-      console.warn('Only absolute paths are allowed:', path);
-      return '';
-    }
+    // 检测 Windows 路径格式 (C:\ 或 D:\等)
+    const isWindowsPath = /^[a-zA-Z]:[\\/]/.test(path);
 
-    return new URL('file:///' + normalized).href;
+    if (isWindowsPath) {
+      // Windows 路径格式: C:\path\to\file
+      // 转换为: file:///C:/path/to/file
+      const normalized = path.replace(/\\/g, '/');
+
+      // 确保路径是绝对路径
+      if (!normalized.match(/^[a-zA-Z]:\//)) {
+        console.warn('Only absolute paths are allowed:', path);
+        return '';
+      }
+
+      // 直接构建 file URL
+      return 'file:///' + normalized;
+    } else {
+      // Unix-like 系统
+      const normalized = path.replace(/\\/g, '/');
+
+      // 验证路径是否为绝对路径
+      if (!normalized.startsWith('/')) {
+        console.warn('Only absolute paths are allowed:', path);
+        return '';
+      }
+
+      return 'file://' + normalized;
+    }
   } catch (error) {
     console.error('Error converting path to file URL:', path, error);
     return '';

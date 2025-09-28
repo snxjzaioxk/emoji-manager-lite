@@ -1,6 +1,6 @@
 {
   "name": "emoji-manager-lite",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "本地表情包管理器 - 专为电脑用户设计的本地表情包管理工具",
   "main": "dist/main/main/main.js",
   "scripts": {

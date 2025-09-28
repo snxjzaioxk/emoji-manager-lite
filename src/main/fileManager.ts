@@ -486,4 +486,47 @@ export class FileManager {
       throw error;
     }
   }
+
+  // Method to rename emoji
+  async renameEmoji(emojiId: string, newName: string): Promise<boolean> {
+    try {
+      // Get emoji from database
+      const emojis = await this.database.getEmojis({});
+      const emoji = emojis.find(e => e.id === emojiId);
+
+      if (!emoji) {
+        throw new Error('表情包不存在');
+      }
+
+      const oldPath = emoji.storagePath;
+
+      // Get file extension
+      const extension = extname(emoji.filename);
+      const newFilename = newName + extension;
+
+      // Create new file path
+      const newPath = join(this.storageDir, newFilename);
+
+      // Check if new name already exists
+      if (existsSync(newPath) && oldPath !== newPath) {
+        throw new Error('文件名已存在');
+      }
+
+      // Rename file
+      await fs.rename(oldPath, newPath);
+
+      // Update database
+      await this.database.updateEmoji(emojiId, {
+        filename: newFilename,
+        storagePath: newPath,
+        updatedAt: new Date()
+      });
+
+      console.log(`Emoji renamed from ${emoji.filename} to ${newFilename}`);
+      return true;
+    } catch (error) {
+      console.error('Failed to rename emoji:', error);
+      throw error;
+    }
+  }
 }

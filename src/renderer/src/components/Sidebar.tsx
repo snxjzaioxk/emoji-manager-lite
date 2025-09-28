@@ -171,8 +171,18 @@ export function Sidebar({ categories, selectedCategory, onCategorySelect, onImpo
 
                 <button
                   className="btn btn-ghost btn-sm"
-                  onClick={() => setOpenMenuId(openMenuId === category.id ? null : category.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMenuId(openMenuId === category.id ? null : category.id);
+                  }}
+                  onTouchEnd={(e) => {
+                    // 触控设备优化：防止触控事件同时触发click
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setOpenMenuId(openMenuId === category.id ? null : category.id);
+                  }}
                   title="分类菜单"
+                  style={{ touchAction: 'manipulation' }}
                 >
                   <MoreVerticalIcon size={14} />
                 </button>

@@ -100,24 +100,58 @@ export function EmojiCard({
 
   const handleCopy = async () => {
     setLoading(true);
-    const result = await safeAsyncWithUserFriendlyError(async () => {
-      await window.electronAPI?.emojis?.copyToClipboard(emoji.storagePath);
-      onUpdate({ usageCount: emoji.usageCount + 1 });
-      return true;
-    }, ErrorType.FILE_SYSTEM, false);
+    console.log('Starting copy operation for:', emoji.filename);
+    const startTime = Date.now();
 
-    if (result) {
-      // 可以显示成功提示
-      console.log('图片已复制到剪贴板');
+    try {
+      const result = await safeAsyncWithUserFriendlyError(async () => {
+        const copyResult = await window.electronAPI?.emojis?.copyToClipboard(emoji.storagePath);
+        if (copyResult) {
+          await onUpdate({ usageCount: emoji.usageCount + 1 });
+          return true;
+        }
+        throw new Error('复制操作失败');
+      }, ErrorType.FILE_SYSTEM, false);
+
+      const endTime = Date.now();
+      console.log(`Copy operation completed in ${endTime - startTime}ms, result:`, result);
+
+      if (result) {
+        // 可以显示成功提示
+        console.log('图片已复制到剪贴板');
+      }
+    } catch (error) {
+      console.error('Copy failed:', error);
+      // 提供更具体的错误信息
+      if (error.message?.includes('ENOENT')) {
+        alert('复制失败：文件不存在');
+      } else if (error.message?.includes('EPERM')) {
+        alert('复制失败：没有权限访问文件');
+      } else {
+        alert(`复制失败：${error.message || '请重试'}`);
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleToggleFavorite = async () => {
+    console.log('Starting favorite toggle for:', emoji.filename);
+    const startTime = Date.now();
+
     await safeAsync(async () => {
       await onUpdate({ isFavorite: !emoji.isFavorite });
+
+      const endTime = Date.now();
+      console.log(`Favorite toggle completed in ${endTime - startTime}ms`);
     }, (error) => {
-      console.warn('Failed to toggle favorite:', error);
+      console.error('Failed to toggle favorite:', error);
+      // 提供更友好的错误处理
+      if (error.message?.includes('database')) {
+        alert('收藏失败：数据库错误，请重试');
+      } else {
+        alert(`收藏失败：${error.message || '请重试'}`);
+      }
     });
   };
 
@@ -162,8 +196,8 @@ export function EmojiCard({
     e.preventDefault();
     e.stopPropagation();
 
-    // 在选择模式或加载状态下不允许预览
-    if (selectionMode || loading) {
+    // 在加载状态下不允许预览，但选择模式下允许预览
+    if (loading) {
       return;
     }
 
@@ -282,6 +316,31 @@ export function EmojiCard({
               <FolderIcon size={16} />
               打开位置
             </button>
+            <button
+              onClick={async () => {
+                const newName = prompt('请输入新文件名（不含扩展名）:', emoji.filename.replace(/\.[^/.]+$/, ''));
+                if (newName && newName.trim()) {
+                  try {
+                    const result = await window.electronAPI?.emojis?.rename(emoji.id, newName.trim());
+                    if (result) {
+                      setShowMenu(false);
+                      // 更新本地状态，不需要刷新页面
+                      onUpdate({ filename: newName.trim() + emoji.filename.slice(emoji.filename.lastIndexOf('.')) });
+                    }
+                  } catch (error) {
+                    alert('重命名失败：' + error.message);
+                  }
+                }
+                setShowMenu(false);
+              }}
+              className="w-full px-4 py-3 text-left text-sm hover:bg-secondary active:bg-secondary flex items-center gap-2 touch-target"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                <path d="m15 5 4 4"/>
+              </svg>
+              重命名
+            </button>
             <div className="border-t border-border-color mt-1 mb-1" />
             <div className="px-4 py-2 text-xs text-secondary">转换格式为</div>
             <button
@@ -353,12 +412,11 @@ export function EmojiCard({
             </div>
           ) : (
             <>
-              {/* 加载状态指示器 */}
+              {/* 加载状态指示器 - 改进版 */}
               {!imageLoaded && !loadError && (
-                <div className="absolute inset-0 flex items-center justify-center bg-bg-tertiary bg-opacity-75">
+                <div className="absolute inset-0 flex items-center justify-center skeleton-loader">
                   <div className="flex flex-col items-center space-y-2">
                     <div className="animate-spin w-6 h-6 border-2 border-accent-color border-t-transparent rounded-full"></div>
-                    <div className="text-muted text-xs">加载中...</div>
                   </div>
                 </div>
               )}
@@ -401,33 +459,11 @@ export function EmojiCard({
           )}
         </div>
 
-        <div className="w-full text-center">
-          <div className="text-sm font-medium truncate mb-1" title={emoji.filename}>
+        <div className="w-full text-center px-2">
+          {/* 只显示文件名，防止越界 */}
+          <div className="text-sm font-medium truncate" title={emoji.filename}>
             {emoji.filename}
           </div>
-          
-          <div className="text-xs text-muted flex items-center justify-between">
-            <span>{formatFileSize(emoji.size)}</span>
-            {emoji.isFavorite && (
-              <HeartIcon size={12} className="fill-current text-red-500" />
-            )}
-          </div>
-
-          {emoji.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {emoji.tags.slice(0, 2).map(tag => (
-                <span
-                  key={tag}
-                  className="px-2 py-1 bg-bg-tertiary text-xs rounded"
-                >
-                  {tag}
-                </span>
-              ))}
-              {emoji.tags.length > 2 && (
-                <span className="text-xs text-muted">+{emoji.tags.length - 2}</span>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>

@@ -29,7 +29,8 @@ class EmojiManagerApp {
         preload: join(__dirname, 'preload.js')
       },
       titleBarStyle: 'default',
-      show: false
+      show: true,  // 立即显示窗口
+      icon: process.platform === 'linux' ? join(__dirname, '../../assets/icon.png') : undefined
     });
 
     const isDev = !app.isPackaged;
@@ -48,18 +49,28 @@ class EmojiManagerApp {
       }
       if (!loaded) {
         console.error('Failed to load any dev server port');
+        // 如果开发服务器失败，加载本地文件
+        await this.mainWindow.loadFile(join(__dirname, '../../renderer/index.html'));
       }
       this.mainWindow.webContents.openDevTools();
     } else {
+      console.log('Loading file:', join(__dirname, '../../renderer/index.html'));
       await this.mainWindow.loadFile(join(__dirname, '../../renderer/index.html'));
     }
 
     this.mainWindow.once('ready-to-show', () => {
+      console.log('Window ready to show');
       this.mainWindow?.show();
+      this.mainWindow?.focus();
     });
 
     this.mainWindow.on('closed', () => {
       this.mainWindow = null;
+    });
+
+    // 添加错误处理
+    this.mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+      console.error('Failed to load page:', errorCode, errorDescription);
     });
   }
 
@@ -191,6 +202,10 @@ class EmojiManagerApp {
 
     ipcMain.handle('update-storage-location', async (_event: IpcMainInvokeEvent, newPath: string) => {
       return await this.fileManager.updateStorageLocation(newPath);
+    });
+
+    ipcMain.handle('rename-emoji', async (_event: IpcMainInvokeEvent, id: string, newName: string) => {
+      return await this.fileManager.renameEmoji(id, newName);
     });
   }
 

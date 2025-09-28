@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { EmojiItem } from '../../../shared/types';
 import { EmojiCard } from './EmojiCard';
 import { EmojiListItem } from './EmojiListItem';
 import { ImagePreview } from './ImagePreview';
+import { useVirtualGrid } from '../hooks/useVirtualScroll';
 import {
   CheckSquare as CheckSquareIcon,
   Square as SquareIcon
@@ -30,6 +31,49 @@ export function EmojiGrid({
   const [previewEmoji, setPreviewEmoji] = useState<EmojiItem | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(800);
+  const [containerHeight, setContainerHeight] = useState(600);
+
+  // 监测容器尺寸变化
+  useEffect(() => {
+    const updateSize = () => {
+      if (scrollContainerRef.current) {
+        setContainerWidth(scrollContainerRef.current.clientWidth);
+        setContainerHeight(scrollContainerRef.current.clientHeight);
+      }
+    };
+
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
+
+  // 根据缩略图大小计算项目尺寸
+  const getItemSize = useCallback(() => {
+    switch (thumbnailSize) {
+      case 'small': return { width: 120, height: 150 };
+      case 'large': return { width: 200, height: 230 };
+      default: return { width: 160, height: 190 };
+    }
+  }, [thumbnailSize]);
+
+  // 使用虚拟网格滚动（仅在超过100个表情时启用）
+  const enableVirtualScroll = emojis.length > 100 && viewMode === 'grid';
+  const itemSize = getItemSize();
+
+  const virtualGrid = useVirtualGrid(emojis, {
+    itemWidth: itemSize.width,
+    itemHeight: itemSize.height,
+    containerWidth,
+    containerHeight,
+    gap: 16,
+    overscan: 2,
+    getScrollElement: () => scrollContainerRef.current
+  });
+
+  const visibleEmojis = enableVirtualScroll ? virtualGrid.visibleItems : emojis;
+
   const handleEmojiSelect = (id: string, selected: boolean) => {
     if (!selectionMode) return; // 只有在选择模式下才能选择
     const newSelection = new Set(selectedEmojis);
@@ -54,10 +98,40 @@ export function EmojiGrid({
   const handlePreviewCopy = async () => {
     if (previewEmoji) {
       try {
-        await window.electronAPI?.emojis?.copyToClipboard(previewEmoji.storagePath);
-        onEmojiUpdate(previewEmoji.id, { usageCount: previewEmoji.usageCount + 1 });
+        console.log('Starting copy operation for:', previewEmoji.filename);
+        const startTime = Date.now();
+
+        // 立即执行复制操作
+        const result = await window.electronAPI?.emojis?.copyToClipboard(previewEmoji.storagePath);
+
+        const endTime = Date.now();
+        console.log(`Copy operation completed in ${endTime - startTime}ms, result:`, result);
+
+        if (result) {
+          // 立即更新使用计数
+          const newUsageCount = previewEmoji.usageCount + 1;
+          await onEmojiUpdate(previewEmoji.id, { usageCount: newUsageCount });
+
+          // 更新预览中的emoji状态
+          setPreviewEmoji({
+            ...previewEmoji,
+            usageCount: newUsageCount
+          });
+
+          console.log('Usage count updated successfully');
+        } else {
+          console.warn('Copy operation returned false');
+        }
       } catch (error) {
         console.error('Failed to copy emoji:', error);
+        // 提供更友好的错误处理
+        if (error.message?.includes('ENOENT')) {
+          alert('复制失败：文件不存在');
+        } else if (error.message?.includes('EPERM')) {
+          alert('复制失败：没有权限访问文件');
+        } else {
+          alert(`复制失败：${error.message || '请重试'}`);
+        }
       }
     }
   };
@@ -65,9 +139,29 @@ export function EmojiGrid({
   const handlePreviewToggleFavorite = async () => {
     if (previewEmoji) {
       try {
-        await onEmojiUpdate(previewEmoji.id, { isFavorite: !previewEmoji.isFavorite });
+        console.log('Starting favorite toggle for:', previewEmoji.filename);
+        const startTime = Date.now();
+
+        // 立即执行收藏状态切换
+        const newFavoriteStatus = !previewEmoji.isFavorite;
+        await onEmojiUpdate(previewEmoji.id, { isFavorite: newFavoriteStatus });
+
+        // 更新预览中的emoji状态
+        setPreviewEmoji({
+          ...previewEmoji,
+          isFavorite: newFavoriteStatus
+        });
+
+        const endTime = Date.now();
+        console.log(`Favorite toggle completed in ${endTime - startTime}ms`);
       } catch (error) {
-        console.warn('Failed to toggle favorite:', error);
+        console.error('Failed to toggle favorite:', error);
+        // 提供更友好的错误处理
+        if (error.message?.includes('database')) {
+          alert('收藏失败：数据库错误，请重试');
+        } else {
+          alert(`收藏失败：${error.message || '请重试'}`);
+        }
       }
     }
   };
@@ -207,6 +301,11 @@ export function EmojiGrid({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted">共 {emojis.length} 个表情包</span>
+            {enableVirtualScroll && (
+              <span className="text-xs text-secondary">
+                (虚拟滚动已启用，显示 {virtualGrid.startIndex + 1}-{Math.min(virtualGrid.endIndex + 1, emojis.length)} 项)
+              </span>
+            )}
 
             {/* 选择模式开关 */}
             <button
@@ -277,22 +376,51 @@ export function EmojiGrid({
           )}
         </div>
       </div>
-    <div className="flex-1 overflow-auto scrollbar p-4">
+    <div className="flex-1 overflow-auto scrollbar p-4" ref={scrollContainerRef}>
         {viewMode === 'grid' ? (
-          <div className={`grid ${getGridCols()} gap-4`}>
-            {emojis.map(emoji => (
-              <EmojiCard
-                key={emoji.id}
-                emoji={emoji}
-                thumbnailSize={thumbnailSize}
-                selected={selectedEmojis.has(emoji.id)}
-                selectionMode={selectionMode}
-                onSelect={(selected) => handleEmojiSelect(emoji.id, selected)}
-                onUpdate={(updates) => onEmojiUpdate(emoji.id, updates)}
-                onDelete={() => onEmojiDelete(emoji.id)}
-                onPreview={() => handlePreviewEmoji(emoji)}
-              />
-            ))}
+          <div style={{ position: 'relative', height: enableVirtualScroll ? `${virtualGrid.totalHeight}px` : 'auto' }}>
+            {enableVirtualScroll && (
+              <div style={{
+                transform: `translateY(${virtualGrid.offsetY}px)`,
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0
+              }}>
+                <div className={`grid ${getGridCols()} gap-4`}>
+                  {visibleEmojis.map(emoji => (
+                    <EmojiCard
+                      key={emoji.id}
+                      emoji={emoji}
+                      thumbnailSize={thumbnailSize}
+                      selected={selectedEmojis.has(emoji.id)}
+                      selectionMode={selectionMode}
+                      onSelect={(selected) => handleEmojiSelect(emoji.id, selected)}
+                      onUpdate={(updates) => onEmojiUpdate(emoji.id, updates)}
+                      onDelete={() => onEmojiDelete(emoji.id)}
+                      onPreview={() => handlePreviewEmoji(emoji)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {!enableVirtualScroll && (
+              <div className={`grid ${getGridCols()} gap-4`}>
+                {emojis.map(emoji => (
+                  <EmojiCard
+                    key={emoji.id}
+                    emoji={emoji}
+                    thumbnailSize={thumbnailSize}
+                    selected={selectedEmojis.has(emoji.id)}
+                    selectionMode={selectionMode}
+                    onSelect={(selected) => handleEmojiSelect(emoji.id, selected)}
+                    onUpdate={(updates) => onEmojiUpdate(emoji.id, updates)}
+                    onDelete={() => onEmojiDelete(emoji.id)}
+                    onPreview={() => handlePreviewEmoji(emoji)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-2">

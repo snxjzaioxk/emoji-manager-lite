@@ -58,6 +58,11 @@ const api = {
       validateString(filePath, 'filePath');
       validateString(targetFormat, 'targetFormat');
       return withTimeout(ipcRenderer.invoke('convert-format', filePath, targetFormat));
+    },
+    rename: (id: string, newName: string) => {
+      validateString(id, 'id');
+      validateString(newName, 'newName');
+      return withTimeout(ipcRenderer.invoke('rename-emoji', id, newName));
     }
   },
 

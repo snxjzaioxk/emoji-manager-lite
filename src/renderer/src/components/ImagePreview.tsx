@@ -99,8 +99,13 @@ export function ImagePreview({
     const containerWidth = container.clientWidth - 32; // 减去padding
     const containerHeight = window.innerHeight * 0.7; // 最大使用70%的视窗高度
 
-    const maxWidth = Math.min(containerWidth, window.innerWidth * 0.8);
-    const maxHeight = Math.min(containerHeight, window.innerHeight * 0.8);
+    // 针对移动设备的优化
+    const isMobile = window.innerWidth <= 768;
+    const maxWidthPercent = isMobile ? 0.95 : 0.8;
+    const maxHeightPercent = isMobile ? 0.85 : 0.8;
+
+    const maxWidth = Math.min(containerWidth, window.innerWidth * maxWidthPercent);
+    const maxHeight = Math.min(containerHeight, window.innerHeight * maxHeightPercent);
 
     // 计算缩放比例
     const widthRatio = maxWidth / imgWidth;
@@ -169,41 +174,177 @@ export function ImagePreview({
     setRetryCount(prev => prev + 1);
   };
 
-  const handleDownload = async () => {
-    await safeAsync(async () => {
+  const handleDownload = async (e?: React.MouseEvent) => {
+    console.log('Download button clicked');
+    try {
+      // 创建一个临时链接来下载文件
+      const response = await fetch(toFileURL(emoji.storagePath));
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+
       const link = document.createElement('a');
-      link.href = toFileURL(emoji.storagePath);
+      link.href = url;
       link.download = emoji.filename;
+      link.style.display = 'none';
+
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    }, (error) => {
+
+      // 清理URL对象
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+
+      console.log('Download successful');
+
+      // 显示下载成功反馈
+      const downloadButton = e?.currentTarget;
+      if (downloadButton) {
+        const originalText = downloadButton.textContent;
+        downloadButton.textContent = '下载中...';
+        setTimeout(() => {
+          downloadButton.textContent = '已下载!';
+          setTimeout(() => {
+            downloadButton.textContent = originalText;
+          }, 1000);
+        }, 500);
+      }
+    } catch (error) {
       console.error('Download failed:', error);
-      alert(`下载失败：${error.message || '请重试'}`);
-    });
+      // 降级到原始方法
+      try {
+        const link = document.createElement('a');
+        link.href = toFileURL(emoji.storagePath);
+        link.download = emoji.filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        console.log('Download successful (fallback method)');
+      } catch (fallbackError) {
+        console.error('Download fallback failed:', fallbackError);
+        alert(`下载失败：${error.message || '请重试'}`);
+      }
+    }
+  };
+
+  const handleCopy = async (e?: React.MouseEvent) => {
+    console.log('Copy button clicked');
+    try {
+      // 立即给用户反馈
+      const startTime = Date.now();
+
+      await onCopy();
+
+      const endTime = Date.now();
+      console.log(`Copy completed in ${endTime - startTime}ms`);
+
+      // 显示成功反馈（可选）
+      const copyButton = e?.currentTarget;
+      if (copyButton) {
+        const originalText = copyButton.textContent;
+        copyButton.textContent = '已复制!';
+        copyButton.style.backgroundColor = 'var(--success-color, #10b981)';
+        setTimeout(() => {
+          copyButton.textContent = originalText;
+          copyButton.style.backgroundColor = '';
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Copy failed:', error);
+      const copyButton = e?.currentTarget;
+      if (copyButton) {
+        const originalText = copyButton.textContent;
+        copyButton.textContent = '复制失败';
+        copyButton.style.backgroundColor = 'var(--error-color, #ef4444)';
+        setTimeout(() => {
+          copyButton.textContent = originalText;
+          copyButton.style.backgroundColor = '';
+        }, 1500);
+      }
+    }
+  };
+
+  const handleFavoriteToggle = async (e?: React.MouseEvent) => {
+    console.log('Favorite button clicked');
+    try {
+      const startTime = Date.now();
+
+      await onToggleFavorite();
+
+      const endTime = Date.now();
+      console.log(`Favorite toggle completed in ${endTime - startTime}ms`);
+
+      // 显示视觉反馈
+      const favoriteButton = e?.currentTarget;
+      if (favoriteButton) {
+        favoriteButton.style.transform = 'scale(1.1)';
+        setTimeout(() => {
+          favoriteButton.style.transform = 'scale(1)';
+        }, 150);
+      }
+    } catch (error) {
+      console.error('Favorite toggle failed:', error);
+      // 即使失败也更新UI状态，让用户知道操作被处理了
+      const favoriteButton = e?.currentTarget;
+      if (favoriteButton) {
+        favoriteButton.style.backgroundColor = 'var(--error-color, #ef4444)';
+        setTimeout(() => {
+          favoriteButton.style.backgroundColor = '';
+        }, 1000);
+      }
+    }
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80"
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{
+        background: 'var(--preview-bg, rgba(255, 255, 255, 0.9))',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)'
+      }}
       onClick={onClose}
     >
       <div
         className="relative max-w-[90vw] max-h-[90vh] bg-primary rounded-lg shadow-2xl"
+        style={{
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.1)',
+          animation: 'fadeInScale 0.3s ease-out'
+        }}
         onClick={(e) => e.stopPropagation()}
         ref={containerRef}
       >
         {/* 关闭按钮 */}
         <button
           onClick={onClose}
-          className="absolute -top-10 right-0 text-white hover:text-gray-300 transition"
+          className="absolute top-4 right-4 hover:text-red-500 transition-all duration-200 transform hover:scale-110 z-10"
+          style={{
+            color: 'var(--preview-close-color, #6b7280)',
+            background: 'var(--preview-close-bg, rgba(255, 255, 255, 0.9))',
+            borderRadius: '50%',
+            width: '40px',
+            height: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '1px solid var(--preview-close-border, rgba(0, 0, 0, 0.1))',
+            boxShadow: '0 2px 8px var(--preview-close-shadow, rgba(0, 0, 0, 0.15))'
+          }}
         >
-          <CloseIcon size={32} />
+          <CloseIcon size={20} />
         </button>
 
         {/* 图片展示区 */}
         <div className="flex flex-col">
-          <div className="relative bg-bg-tertiary rounded-t-lg p-4 flex items-center justify-center" style={{ minHeight: '300px', maxHeight: '80vh' }}>
+          <div className="relative rounded-lg p-4 flex items-center justify-center"
+            style={{
+              minHeight: '300px',
+              maxHeight: '80vh',
+              background: 'transparent'
+            }}>
             {imageLoading && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="flex flex-col items-center space-y-3">
@@ -236,7 +377,7 @@ export function ImagePreview({
               key={`${emoji.storagePath}-${retryCount}`}
               src={toFileURL(emoji.storagePath)}
               alt={emoji.filename}
-              className={`object-contain transition-opacity ${imageLoading || imageError ? 'opacity-0' : 'opacity-100'}`}
+              className={`object-contain transition-opacity rounded ${imageLoading || imageError ? 'opacity-0' : 'opacity-100'}`}
               style={{
                 display: imageError ? 'none' : 'block',
                 width: displaySize ? `${displaySize.width}px` : 'auto',
@@ -249,47 +390,34 @@ export function ImagePreview({
             />
           </div>
 
-          {/* 信息和操作栏 */}
+          {/* 简洁的底部操作栏 */}
           <div className="bg-primary border-t border-border-color p-4 rounded-b-lg">
             <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-lg font-semibold truncate" title={emoji.filename}>
-                  {emoji.filename}
-                </h3>
-                <div className="text-sm text-muted mt-1">
-                  <span>{emoji.format.toUpperCase()}</span>
-                  <span className="mx-2">·</span>
-                  <span>{formatFileSize(emoji.size)}</span>
-                  <span className="mx-2">·</span>
-                  <span>{emoji.width} × {emoji.height}</span>
-                  {imageDimensions && displaySize && (
-                    <>
-                      <span className="mx-2">·</span>
-                      <span className="text-accent-color">
-                        显示: {displaySize.width} × {displaySize.height}
-                        {displaySize.width < imageDimensions.width && ' (已缩放)'}
-                      </span>
-                    </>
-                  )}
-                </div>
-                <div className="text-xs text-secondary mt-1">
-                  按 ESC 关闭 • Ctrl+C 复制 • F 切换收藏
-                </div>
-              </div>
+              <h3 className="text-lg font-semibold truncate flex-1 min-w-0" title={emoji.filename}>
+                {emoji.filename}
+              </h3>
             </div>
 
             {/* 操作按钮 */}
-            <div className="flex gap-2 mt-3">
+            <div className="flex gap-2">
               <button
-                onClick={onCopy}
-                className="btn btn-primary flex items-center gap-2"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  await handleCopy(e);
+                }}
+                className="btn btn-primary flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
               >
                 <CopyIcon size={16} />
                 复制
               </button>
               <button
-                onClick={onToggleFavorite}
-                className="btn btn-secondary flex items-center gap-2"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  await handleFavoriteToggle(e);
+                }}
+                className="btn btn-secondary flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
               >
                 <HeartIcon
                   size={16}
@@ -298,41 +426,39 @@ export function ImagePreview({
                 {emoji.isFavorite ? '取消收藏' : '收藏'}
               </button>
               <button
-                onClick={handleDownload}
-                className="btn btn-secondary flex items-center gap-2"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  await handleDownload(e);
+                }}
+                className="btn btn-secondary flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
               >
                 <DownloadIcon size={16} />
                 下载
               </button>
               <button
-                onClick={onOpenLocation}
-                className="btn btn-secondary flex items-center gap-2"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onOpenLocation();
+                }}
+                className="btn btn-secondary flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
               >
                 <FolderIcon size={16} />
                 打开位置
               </button>
               <button
-                onClick={onDelete}
-                className="btn btn-secondary text-red-500 flex items-center gap-2"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                className="btn btn-secondary text-red-500 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
               >
                 <TrashIcon size={16} />
                 删除
               </button>
             </div>
-
-            {/* 标签 */}
-            {emoji.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-3">
-                {emoji.tags.map(tag => (
-                  <span
-                    key={tag}
-                    className="px-2 py-1 bg-bg-tertiary text-xs rounded"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </div>

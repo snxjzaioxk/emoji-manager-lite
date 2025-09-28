@@ -32,6 +32,13 @@ body {
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.15);
   --radius: 6px;
   --radius-lg: 12px;
+
+  /* 预览模式样式 - 浅色主题 */
+  --preview-bg: rgba(255, 255, 255, 0.9);
+  --preview-close-color: #6b7280;
+  --preview-close-bg: rgba(255, 255, 255, 0.9);
+  --preview-close-border: rgba(0, 0, 0, 0.1);
+  --preview-close-shadow: rgba(0, 0, 0, 0.15);
 }
 
 [data-theme="dark"] {
@@ -46,6 +53,13 @@ body {
   --border-color: #404040;
   --shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4);
+
+  /* 预览模式样式 - 深色主题 */
+  --preview-bg: rgba(26, 26, 26, 0.9);
+  --preview-close-color: #b3b3b3;
+  --preview-close-bg: rgba(45, 45, 45, 0.9);
+  --preview-close-border: rgba(255, 255, 255, 0.1);
+  --preview-close-shadow: rgba(0, 0, 0, 0.4);
 }
 
 /* Utility classes for background and border colors */
@@ -106,6 +120,23 @@ body {
 .btn-sm {
   padding: 4px 8px;
   font-size: 12px;
+  /* 移动设备上增加最小点击区域 */
+  min-height: 32px;
+  min-width: 32px;
+}
+
+/* 触控设备优化 */
+@media (pointer: coarse) {
+  .btn-sm {
+    padding: 8px 12px;
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 
 .input {
@@ -339,4 +370,88 @@ body {
   .max-w-2xl { max-width: 95vw; }
   .p-4 { padding: 12px; }
   .space-y-6 > * + * { margin-top: 1rem; }
+
+  /* 小屏幕上的网格布局调整 */
+  .grid-cols-8 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .grid-cols-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .grid-cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* 超小屏幕（手机竖屏） */
+@media (max-width: 480px) {
+  .grid-cols-8 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .grid-cols-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* 侧边栏响应式 */
+  .sidebar-mobile-toggle {
+    display: block;
+  }
+}
+
+/* 平板和桌面隐藏移动端菜单按钮 */
+@media (min-width: 768px) {
+  .sidebar-mobile-toggle {
+    display: none;
+  }
+}
+
+/* 预览模式动画效果 */
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 骨架屏闪烁动画 */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* 加载占位符样式 */
+.skeleton-loader {
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 0%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* 增强的按钮悬停效果 */
+.btn {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+
+.btn:hover::before {
+  left: 100%;
+}
+
+.btn:active {
+  transform: scale(0.98);
 }

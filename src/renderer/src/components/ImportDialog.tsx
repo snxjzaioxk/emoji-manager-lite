@@ -58,12 +58,14 @@ export function ImportDialog({ categories, onClose, onImportComplete, defaultPat
         autoGenerateTags
       });
 
-      setImportResult(result);
-      
-      if (result.success > 0) {
-        setTimeout(() => {
-          onImportComplete();
-        }, 2000);
+      if (result) {
+        setImportResult(result);
+
+        if (result.success > 0) {
+          setTimeout(() => {
+            onImportComplete();
+          }, 2000);
+        }
       }
     } catch (error) {
       console.error('Import failed:', error);

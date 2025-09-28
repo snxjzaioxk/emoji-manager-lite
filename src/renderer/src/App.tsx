@@ -4,41 +4,12 @@ import { EmojiGrid } from './components/EmojiGrid';
 import { Toolbar } from './components/Toolbar';
 import { ImportDialog } from './components/ImportDialog';
 import { SettingsDialog } from './components/SettingsDialog';
-import { EmojiItem, Category, SearchFilters, AppSettings, ImportOptions } from '../../shared/types';
+import { EmojiItem, Category, SearchFilters, AppSettings, ImportOptions, ExportOptions } from '../../shared/types';
+import { ElectronAPI, FileInfo } from './types/global';
 
-// 模拟 electronAPI 用于测试
-interface MockElectronAPI {
-  categories: {
-    getAll: () => Promise<Category[]>;
-    add: (category: Omit<Category, 'createdAt' | 'updatedAt'>) => Promise<void>;
-    update: (id: string, updates: Partial<Category>) => Promise<void>;
-    delete: (id: string) => Promise<void>;
-  };
-  emojis: {
-    getAll: (filters?: SearchFilters) => Promise<EmojiItem[]>;
-    add: (emoji: Omit<EmojiItem, 'createdAt' | 'updatedAt'>) => Promise<void>;
-    update: (id: string, updates: Partial<EmojiItem>) => Promise<void>;
-    delete: (id: string) => Promise<void>;
-    import: (options: ImportOptions) => Promise<{ success: number; failed: number; duplicates: number }>;
-    export: (options: any) => Promise<string | null>;
-    copyToClipboard: (filePath: string) => Promise<void>;
-    convertFormat: (filePath: string, targetFormat: string) => Promise<string | null>;
-  };
-  files: {
-    selectFolder: () => Promise<string | null>;
-    selectFiles: () => Promise<string[]>;
-    openLocation: (filePath: string) => Promise<boolean>;
-    getInfo: (filePath: string) => Promise<any>;
-    readAsDataURL: (filePath: string) => Promise<string | null>;
-    updateStorageLocation: (newPath: string) => Promise<void>;
-  };
-  settings: {
-    get: (key: string) => Promise<unknown>;
-    set: (key: string, value: unknown) => Promise<void>;
-  };
-}
+// 模拟 electronAPI 用于测试，与真实API保持一致
 
-const mockElectronAPI: MockElectronAPI = {
+const mockElectronAPI: ElectronAPI = {
   categories: {
     getAll: () => Promise.resolve([
       { id: 'default', name: '默认分类', description: '未分类的表情包', createdAt: new Date(), updatedAt: new Date() },
@@ -54,7 +25,7 @@ const mockElectronAPI: MockElectronAPI = {
     add: (_emoji: Omit<EmojiItem, 'updatedAt' | 'createdAt'>) => Promise.resolve(),
     update: (_id: string, _updates: Partial<EmojiItem>) => Promise.resolve(),
     delete: (_id: string) => Promise.resolve(),
-    export: (_options: any) => Promise.resolve(null),
+    export: (_options: ExportOptions) => Promise.resolve(),
     import: (_options: ImportOptions) => Promise.resolve({ success: 0, failed: 0, duplicates: 0 }),
     copyToClipboard: (_filePath: string) => Promise.resolve(),
     convertFormat: (_filePath: string, _targetFormat: string) => Promise.resolve(null)
@@ -63,7 +34,14 @@ const mockElectronAPI: MockElectronAPI = {
     selectFolder: () => Promise.resolve(null),
     selectFiles: () => Promise.resolve([]),
     openLocation: (_filePath: string) => Promise.resolve(false),
-    getInfo: (_filePath: string) => Promise.resolve(null),
+    getInfo: (_filePath: string) => Promise.resolve({
+      size: 0,
+      width: 0,
+      height: 0,
+      format: 'unknown',
+      createdAt: new Date(),
+      modifiedAt: new Date()
+    } as FileInfo),
     readAsDataURL: (_filePath: string) => Promise.resolve(null),
     updateStorageLocation: (_newPath: string) => Promise.resolve()
   },
