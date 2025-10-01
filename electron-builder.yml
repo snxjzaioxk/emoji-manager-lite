@@ -1,0 +1,149 @@
+appId: com.emojimanager.lite
+productName: Emoji Manager Lite
+copyright: Copyright © 2025
+asar: true
+asarUnpack:
+  - resources/**
+
+directories:
+  buildResources: build
+  output: release/${version}
+
+files:
+  - dist/**/*
+  - package.json
+  - node_modules/**/*
+  - "!node_modules/**/*.{md,markdown,MD,txt,TXT}"
+  - "!node_modules/**/LICENSE"
+  - "!node_modules/**/CHANGELOG*"
+  - "!node_modules/**/{README,readme}*"
+  - "!node_modules/**/{test,tests,__tests__}/**"
+  - "!node_modules/**/*.{ts,map}"
+  - "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}"
+  - "!.editorconfig"
+  - "!**/._*"
+  - "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}"
+  - "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}"
+  - "!**/{appveyor.yml,.travis.yml,circle.yml}"
+  - "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+
+extraResources:
+  - from: resources/
+    to: resources/
+    filter:
+      - "**/*"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: build/icon.ico
+  publisherName: Emoji Manager Team
+  verifyUpdateCodeSignature: false
+  requestedExecutionLevel: asInvoker
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Emoji Manager Lite
+  include: build/installer.nsh
+  installerIcon: build/installerIcon.ico
+  uninstallerIcon: build/uninstallerIcon.ico
+  installerHeaderIcon: build/installerHeaderIcon.ico
+  license: LICENSE
+  language: 2052  # Chinese Simplified
+  warningsAsErrors: false
+
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  category: public.app-category.productivity
+  icon: build/icon.icns
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  darkModeSupport: true
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+  window:
+    width: 540
+    height: 380
+  backgroundColor: "#1a1a1a"
+  icon: build/icon.icns
+  iconSize: 80
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+    - target: rpm
+      arch:
+        - x64
+  icon: build/icons/
+  category: Utility
+  synopsis: Emoji and sticker manager
+  description: >
+    A powerful emoji and sticker management application.
+    Supports importing, organizing, searching and exporting emojis.
+  desktop:
+    Name: Emoji Manager Lite
+    Comment: Manage your emojis and stickers
+    Categories: Utility;Graphics;
+    StartupWMClass: emoji-manager-lite
+
+appImage:
+  artifactName: ${productName}-${version}.${ext}
+
+deb:
+  depends:
+    - gconf2
+    - gconf-service
+    - libnotify4
+    - libappindicator1
+    - libxtst6
+    - libnss3
+
+rpm:
+  depends:
+    - libnotify
+    - libappindicator
+    - libXtst
+
+publish:
+  provider: github
+  owner: yourusername
+  repo: emoji-manager-lite
+  releaseType: release
+
+compression: maximum
+nodeGypRebuild: false
+buildDependenciesFromSource: false
+
+afterPack: ./scripts/afterPack.js
+afterSign: ./scripts/afterSign.js

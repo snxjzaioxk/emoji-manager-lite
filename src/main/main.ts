@@ -4,16 +4,19 @@ import { isAbsolute, normalize } from 'path';
 import { join } from 'path';
 import { Database } from './database';
 import { FileManager } from './fileManager';
-import { EmojiItem, Category, ImportOptions, ExportOptions, SearchFilters } from '../shared/types';
+import { EmojiItem, Category, ImportOptions, ExportOptions, SearchFilters, ScannerRunOptions, ScannerConfig, SavedSearch } from '../shared/types';
+import { EmojiScanner } from './emojiScanner';
 
 class EmojiManagerApp {
   private mainWindow: BrowserWindow | null = null;
   private database: Database;
   private fileManager: FileManager;
+  private scanner: EmojiScanner;
 
   constructor() {
     this.database = new Database();
     this.fileManager = new FileManager(this.database);
+    this.scanner = new EmojiScanner(this.database, this.fileManager);
     this.setupIpcHandlers();
   }
 
@@ -75,6 +78,10 @@ class EmojiManagerApp {
   }
 
   private setupIpcHandlers(): void {
+    ipcMain.handle('get-emoji', async (_event: IpcMainInvokeEvent, id: string) => {
+      return await this.database.getEmoji(id);
+    });
+
     ipcMain.handle('get-emojis', async (_event: IpcMainInvokeEvent, filters: SearchFilters) => {
       return await this.database.getEmojis(filters);
     });
@@ -118,6 +125,55 @@ class EmojiManagerApp {
 
     ipcMain.handle('delete-category', async (_event: IpcMainInvokeEvent, id: string) => {
       return await this.database.deleteCategory(id);
+    });
+
+    ipcMain.handle('get-tags', async () => {
+      return await this.database.getTags();
+    });
+
+    ipcMain.handle('create-tag', async (_event: IpcMainInvokeEvent, payload: unknown) => {
+      if (typeof payload !== 'object' || payload === null) {
+        throw new Error('Invalid tag payload');
+      }
+      const tag = payload as { name: string; color?: string; description?: string };
+      return await this.database.createTag(tag);
+    });
+
+    ipcMain.handle('update-tag', async (_event: IpcMainInvokeEvent, id: string, updates: unknown) => {
+      if (typeof updates !== 'object' || updates === null) {
+        throw new Error('Invalid tag updates');
+      }
+      return await this.database.updateTag(id, updates as Partial<{ name: string; color?: string; description?: string }>);
+    });
+
+    ipcMain.handle('delete-tag', async (_event: IpcMainInvokeEvent, id: string) => {
+      return await this.database.deleteTag(id);
+    });
+
+    ipcMain.handle('set-emoji-tags', async (_event: IpcMainInvokeEvent, emojiId: string, tagNames: string[]) => {
+      return await this.database.setEmojiTagsForEmoji(emojiId, tagNames);
+    });
+
+    ipcMain.handle('get-saved-searches', async () => {
+      return await this.database.getSavedSearches();
+    });
+
+    ipcMain.handle('create-saved-search', async (_event: IpcMainInvokeEvent, search: unknown) => {
+      if (typeof search !== 'object' || search === null) {
+        throw new Error('Invalid search object');
+      }
+      return await this.database.createSavedSearch(search as Omit<SavedSearch, 'id' | 'createdAt' | 'updatedAt'>);
+    });
+
+    ipcMain.handle('update-saved-search', async (_event: IpcMainInvokeEvent, id: string, updates: unknown) => {
+      if (typeof updates !== 'object' || updates === null) {
+        throw new Error('Invalid updates object');
+      }
+      return await this.database.updateSavedSearch(id, updates as Partial<Omit<SavedSearch, 'id' | 'createdAt' | 'updatedAt'>>);
+    });
+
+    ipcMain.handle('delete-saved-search', async (_event: IpcMainInvokeEvent, id: string) => {
+      return await this.database.deleteSavedSearch(id);
     });
 
     ipcMain.handle('import-emojis', async (_event: IpcMainInvokeEvent, options: ImportOptions) => {
@@ -207,11 +263,34 @@ class EmojiManagerApp {
     ipcMain.handle('rename-emoji', async (_event: IpcMainInvokeEvent, id: string, newName: string) => {
       return await this.fileManager.renameEmoji(id, newName);
     });
+
+    ipcMain.handle('scanner-detect-sources', async () => {
+      return await this.scanner.detectSources();
+    });
+
+    ipcMain.handle('scanner-get-config', async () => {
+      return await this.scanner.getConfig();
+    });
+
+    ipcMain.handle('scanner-save-config', async (_event: IpcMainInvokeEvent, config: unknown) => {
+      if (typeof config !== 'object' || config === null) {
+        throw new Error('Invalid config payload');
+      }
+      return await this.scanner.saveConfig(config as Partial<ScannerConfig>);
+    });
+
+    ipcMain.handle('scanner-run', async (_event: IpcMainInvokeEvent, options: unknown) => {
+      if (typeof options !== 'object' || options === null) {
+        throw new Error('Invalid scan options');
+      }
+      return await this.scanner.runScan(options as ScannerRunOptions);
+    });
   }
 
   async initialize(): Promise<void> {
     await app.whenReady();
     await this.createWindow();
+    void this.maybeAutoScan();
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
@@ -230,6 +309,24 @@ class EmojiManagerApp {
         }
       }
     });
+  }
+
+  private async maybeAutoScan(): Promise<void> {
+    try {
+      const config = await this.scanner.getConfig();
+      if (!config.autoScanOnLaunch) {
+        return;
+      }
+
+      await this.scanner.runScan({
+        sourceIds: config.enabledSources,
+        additionalPaths: config.customPaths,
+        skipDuplicates: true,
+        autoTagPlatform: config.autoTagPlatform ?? false
+      });
+    } catch (error) {
+      console.warn('Auto scan failed:', error);
+    }
   }
 }
 

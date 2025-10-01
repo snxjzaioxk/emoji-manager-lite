@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { EmojiItem } from '../../../shared/types';
-import { toFileURL, formatFileSize, safeAsync, createLazyLoadObserver } from '../../../shared/utils';
+import { toFileURL, safeAsync, createLazyLoadObserver } from '../../../shared/utils';
 import { safeAsyncWithUserFriendlyError, ErrorType } from '../../../shared/errorHandling';
 import {
   Heart as HeartIcon,
@@ -120,15 +120,15 @@ export function EmojiCard({
         // 可以显示成功提示
         console.log('图片已复制到剪贴板');
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Copy failed:', error);
-      // 提供更具体的错误信息
-      if (error.message?.includes('ENOENT')) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('ENOENT')) {
         alert('复制失败：文件不存在');
-      } else if (error.message?.includes('EPERM')) {
+      } else if (message.includes('EPERM')) {
         alert('复制失败：没有权限访问文件');
       } else {
-        alert(`复制失败：${error.message || '请重试'}`);
+        alert(`复制失败：${message || '请重试'}`);
       }
     } finally {
       setLoading(false);
@@ -144,7 +144,7 @@ export function EmojiCard({
 
       const endTime = Date.now();
       console.log(`Favorite toggle completed in ${endTime - startTime}ms`);
-    }, (error) => {
+    }, (error: Error) => {
       console.error('Failed to toggle favorite:', error);
       // 提供更友好的错误处理
       if (error.message?.includes('database')) {
@@ -241,7 +241,7 @@ export function EmojiCard({
         imgRef.current.src = data;
         setLoadError(false);
       }
-    }, (error) => {
+    }, (error: Error) => {
       console.warn('Failed to load image fallback:', error);
     });
   };
@@ -321,14 +321,12 @@ export function EmojiCard({
                 const newName = prompt('请输入新文件名（不含扩展名）:', emoji.filename.replace(/\.[^/.]+$/, ''));
                 if (newName && newName.trim()) {
                   try {
-                    const result = await window.electronAPI?.emojis?.rename(emoji.id, newName.trim());
-                    if (result) {
-                      setShowMenu(false);
-                      // 更新本地状态，不需要刷新页面
-                      onUpdate({ filename: newName.trim() + emoji.filename.slice(emoji.filename.lastIndexOf('.')) });
-                    }
-                  } catch (error) {
-                    alert('重命名失败：' + error.message);
+                    await window.electronAPI?.emojis?.rename(emoji.id, newName.trim());
+                    setShowMenu(false);
+                    onUpdate({ filename: newName.trim() + emoji.filename.slice(emoji.filename.lastIndexOf('.')) });
+                  } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    alert('重命名失败：' + message);
                   }
                 }
                 setShowMenu(false);

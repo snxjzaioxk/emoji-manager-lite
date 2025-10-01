@@ -1,0 +1,33 @@
+{
+  "workspaceRoot": "../emoji-sync",
+  "platforms": [
+    {
+      "name": "wechat",
+      "sources": ["../emoji-sync/sources/wechat"]
+    },
+    {
+      "name": "qq",
+      "sources": ["../emoji-sync/sources/qq"]
+    },
+    {
+      "name": "douyin",
+      "sources": ["../emoji-sync/sources/douyin"]
+    }
+  ],
+  "normalization": {
+    "targetFormat": null,
+    "maxDimension": 512,
+    "quality": 90
+  },
+  "sync": {
+    "categoryPrefix": "",
+    "categoryMap": {
+      "wechat": "wechat",
+      "qq": "qq",
+      "douyin": "douyin"
+    },
+    "autoTagPlatform": true,
+    "skipDuplicates": true,
+    "userDataPathOverride": "../emoji-sync/appdata"
+  }
+}

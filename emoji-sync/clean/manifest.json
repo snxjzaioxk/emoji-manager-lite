@@ -1,0 +1,32 @@
+[
+  {
+    "platform": "wechat",
+    "hash": "6e3f1b011cb41b2ffeeceeeb2547088994c0ea14",
+    "source": "D:\\project\\Emoji Manager Lite\\emoji-sync\\raw\\wechat\\20251001_122114\\wink.png",
+    "output": "D:\\project\\Emoji Manager Lite\\emoji-sync\\clean\\wechat\\wechat_6e3f1b011cb41b2ffeeceeeb2547088994c0ea14.png"
+  },
+  {
+    "platform": "wechat",
+    "hash": "9bc52d5e45bbf50482a4e807fc9b4e7d07aec10c",
+    "source": "D:\\project\\Emoji Manager Lite\\emoji-sync\\raw\\wechat\\20251001_122114\\smile.png",
+    "output": "D:\\project\\Emoji Manager Lite\\emoji-sync\\clean\\wechat\\wechat_9bc52d5e45bbf50482a4e807fc9b4e7d07aec10c.png"
+  },
+  {
+    "platform": "qq",
+    "hash": "6e3f1b011cb41b2ffeeceeeb2547088994c0ea14",
+    "source": "D:\\project\\Emoji Manager Lite\\emoji-sync\\raw\\qq\\20251001_122114\\wink.png",
+    "output": "D:\\project\\Emoji Manager Lite\\emoji-sync\\clean\\qq\\qq_6e3f1b011cb41b2ffeeceeeb2547088994c0ea14.png"
+  },
+  {
+    "platform": "qq",
+    "hash": "eaf9572c628af47c55992ea24bf296bb06900f43",
+    "source": "D:\\project\\Emoji Manager Lite\\emoji-sync\\raw\\qq\\20251001_122114\\laugh.png",
+    "output": "D:\\project\\Emoji Manager Lite\\emoji-sync\\clean\\qq\\qq_eaf9572c628af47c55992ea24bf296bb06900f43.png"
+  },
+  {
+    "platform": "douyin",
+    "hash": "52c8c9968decc16f3f7cb6602d587b22ca481768",
+    "source": "D:\\project\\Emoji Manager Lite\\emoji-sync\\raw\\douyin\\20251001_122114\\dance.png",
+    "output": "D:\\project\\Emoji Manager Lite\\emoji-sync\\clean\\douyin\\douyin_52c8c9968decc16f3f7cb6602d587b22ca481768.png"
+  }
+]

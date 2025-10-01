@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { SearchFilters } from '../../../shared/types';
-import { Search as SearchIcon, Grid as GridIcon, List as ListIcon, Filter as FilterIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { SearchFilters, Tag } from '../../../shared/types';
+import { Search as SearchIcon, Grid as GridIcon, List as ListIcon, Filter as FilterIcon, X as XIcon } from 'lucide-react';
 
 interface ToolbarProps {
   onSearch: (keyword: string) => void;
@@ -8,17 +8,40 @@ interface ToolbarProps {
   onViewModeChange: (mode: 'grid' | 'list') => void;
   searchFilters: SearchFilters;
   onFiltersChange: (filters: SearchFilters) => void;
+  onAdvancedSearch?: () => void;
 }
 
-export function Toolbar({ 
-  onSearch, 
-  viewMode, 
-  onViewModeChange, 
-  searchFilters, 
-  onFiltersChange 
+export function Toolbar({
+  onSearch,
+  viewMode,
+  onViewModeChange,
+  searchFilters,
+  onFiltersChange,
+  onAdvancedSearch
 }: ToolbarProps) {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [availableTags, setAvailableTags] = useState<Tag[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(searchFilters.tagIds || []);
+
+  useEffect(() => {
+    // 加载可用标签
+    loadTags();
+  }, []);
+
+  useEffect(() => {
+    // 同步标签筛选器
+    setSelectedTagIds(searchFilters.tagIds || []);
+  }, [searchFilters.tagIds]);
+
+  const loadTags = async () => {
+    try {
+      const tags = await window.api?.tags?.getAll();
+      setAvailableTags(tags || []);
+    } catch (error) {
+      console.error('Failed to load tags:', error);
+    }
+  };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +50,15 @@ export function Toolbar({
 
   const handleFilterChange = (key: keyof SearchFilters, value: unknown) => {
     onFiltersChange({ ...searchFilters, [key]: value });
+  };
+
+  const handleTagToggle = (tagId: string) => {
+    const newSelectedTags = selectedTagIds.includes(tagId)
+      ? selectedTagIds.filter(id => id !== tagId)
+      : [...selectedTagIds, tagId];
+
+    setSelectedTagIds(newSelectedTags);
+    handleFilterChange('tagIds', newSelectedTags.length > 0 ? newSelectedTags : undefined);
   };
 
   return (
@@ -53,6 +85,16 @@ export function Toolbar({
             <FilterIcon size={16} />
             筛选
           </button>
+
+          {onAdvancedSearch && (
+            <button
+              onClick={onAdvancedSearch}
+              className="btn btn-ghost"
+            >
+              <SearchIcon size={16} />
+              高级搜索
+            </button>
+          )}
 
           <div className="flex border border-border-color rounded overflow-hidden">
             <button
@@ -105,18 +147,36 @@ export function Toolbar({
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">标签</label>
-              <input
-                type="text"
-                placeholder="输入标签..."
-                value={searchFilters.tags?.join(', ') || ''}
-                onChange={(e) => {
-                  const tags = e.target.value.split(',').map(tag => tag.trim()).filter(Boolean);
-                  handleFilterChange('tags', tags.length > 0 ? tags : undefined);
-                }}
-                className="input w-full"
-              />
+            <div className="md:col-span-3">
+              <label className="block text-sm font-medium mb-2">
+                标签筛选 {selectedTagIds.length > 0 && `(已选择 ${selectedTagIds.length} 个)`}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {availableTags.map(tag => (
+                  <button
+                    key={tag.id}
+                    onClick={() => handleTagToggle(tag.id)}
+                    className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                      selectedTagIds.includes(tag.id)
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                    style={{
+                      backgroundColor: selectedTagIds.includes(tag.id) && tag.color
+                        ? tag.color
+                        : undefined
+                    }}
+                  >
+                    {tag.name}
+                    {selectedTagIds.includes(tag.id) && (
+                      <XIcon className="inline-block ml-1 w-3 h-3" />
+                    )}
+                  </button>
+                ))}
+                {availableTags.length === 0 && (
+                  <span className="text-gray-500 text-sm">暂无标签</span>
+                )}
+              </div>
             </div>
           </div>
 

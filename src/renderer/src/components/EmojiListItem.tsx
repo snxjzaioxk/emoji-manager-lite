@@ -242,14 +242,11 @@ export function EmojiListItem({
                 const newName = prompt('请输入新文件名（不含扩展名）:', emoji.filename.replace(/\.[^/.]+$/, ''));
                 if (newName && newName.trim()) {
                   try {
-                    const result = await window.electronAPI?.emojis?.rename(emoji.id, newName.trim());
-                    if (result) {
-                      setShowMenu(false);
-                      // 更新本地状态，不需要刷新页面
-                      onUpdate({ filename: newName.trim() + emoji.filename.slice(emoji.filename.lastIndexOf('.')) });
-                    }
+                    await window.electronAPI?.emojis?.rename(emoji.id, newName.trim());
+                    setShowMenu(false);
+                    onUpdate({ filename: newName.trim() + emoji.filename.slice(emoji.filename.lastIndexOf('.')) });
                   } catch (error) {
-                    alert('重命名失败：' + error.message);
+                    alert('重命名失败：' + ((error as Error).message || '未知错误'));
                   }
                 }
                 setShowMenu(false);

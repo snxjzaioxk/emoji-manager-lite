@@ -4,7 +4,10 @@ import { EmojiGrid } from './components/EmojiGrid';
 import { Toolbar } from './components/Toolbar';
 import { ImportDialog } from './components/ImportDialog';
 import { SettingsDialog } from './components/SettingsDialog';
-import { EmojiItem, Category, SearchFilters, AppSettings, ImportOptions, ExportOptions } from '../../shared/types';
+import { ScannerDialog } from './components/ScannerDialog';
+import { TagManager } from './components/TagManager';
+import { AdvancedSearch } from './components/AdvancedSearch';
+import { EmojiItem, Category, SearchFilters, AppSettings, ImportOptions, ExportOptions, Tag, SavedSearch } from '../../shared/types';
 import { ElectronAPI, FileInfo } from './types/global';
 
 // 模拟 electronAPI 用于测试，与真实API保持一致
@@ -21,6 +24,7 @@ const mockElectronAPI: ElectronAPI = {
     delete: (_id: string) => Promise.resolve()
   },
   emojis: {
+    get: (_id: string) => Promise.resolve(null),
     getAll: (_filters?: SearchFilters) => Promise.resolve([]),
     add: (_emoji: Omit<EmojiItem, 'updatedAt' | 'createdAt'>) => Promise.resolve(),
     update: (_id: string, _updates: Partial<EmojiItem>) => Promise.resolve(),
@@ -28,7 +32,8 @@ const mockElectronAPI: ElectronAPI = {
     export: (_options: ExportOptions) => Promise.resolve(),
     import: (_options: ImportOptions) => Promise.resolve({ success: 0, failed: 0, duplicates: 0 }),
     copyToClipboard: (_filePath: string) => Promise.resolve(),
-    convertFormat: (_filePath: string, _targetFormat: string) => Promise.resolve(null)
+    convertFormat: (_filePath: string, _targetFormat: string) => Promise.resolve(null),
+    rename: (_id: string, _newName: string) => Promise.resolve()
   },
   files: {
     selectFolder: () => Promise.resolve(null),
@@ -44,6 +49,23 @@ const mockElectronAPI: ElectronAPI = {
     } as FileInfo),
     readAsDataURL: (_filePath: string) => Promise.resolve(null),
     updateStorageLocation: (_newPath: string) => Promise.resolve()
+  },
+  tags: {
+    getAll: () => Promise.resolve([]),
+    create: (_tag: { name: string; color?: string; description?: string }) => Promise.resolve({
+      id: 'mock-id',
+      name: 'mock-tag',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }),
+    update: (_id: string, _updates: Partial<Omit<Tag, 'id' | 'createdAt' | 'updatedAt'>>) => Promise.resolve({
+      id: 'mock-id',
+      name: 'updated-tag',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }),
+    delete: (_id: string) => Promise.resolve(),
+    setForEmoji: (_emojiId: string, _tagNames: string[]) => Promise.resolve([])
   },
   settings: {
     get: (key: string) => {
@@ -69,6 +91,54 @@ const mockElectronAPI: ElectronAPI = {
       return Promise.resolve(defaults[key]);
     },
     set: (_key: string, _value: unknown) => Promise.resolve()
+  },
+  scanner: {
+    detectSources: () => Promise.resolve([]),
+    getConfig: () => Promise.resolve({
+      enabledSources: [],
+      customPaths: [],
+      autoScanOnLaunch: false,
+      targetCategoryMap: {
+        wechat: 'wechat',
+        qq: 'qq',
+        douyin: 'douyin',
+        browser: 'browser',
+        custom: 'custom'
+      }
+    }),
+    saveConfig: (config) => Promise.resolve({
+      enabledSources: config.enabledSources ?? [],
+      customPaths: config.customPaths ?? [],
+      autoScanOnLaunch: Boolean(config.autoScanOnLaunch),
+      targetCategoryMap: {
+        wechat: 'wechat',
+        qq: 'qq',
+        douyin: 'douyin',
+        browser: 'browser',
+        custom: 'custom',
+        ...(config.targetCategoryMap ?? {})
+      }
+    }),
+    run: () => Promise.resolve({
+      totalFound: 0,
+      imported: 0,
+      skipped: 0,
+      duplicates: 0,
+      failed: 0,
+      records: []
+    })
+  },
+  savedSearches: {
+    getAll: () => Promise.resolve([]),
+    create: (_search: Omit<SavedSearch, 'id' | 'createdAt' | 'updatedAt'>) => Promise.resolve({
+      id: 'mock-id',
+      name: 'Mock Search',
+      filters: {},
+      createdAt: new Date(),
+      updatedAt: new Date()
+    } as SavedSearch),
+    update: (_id: string, _updates: Partial<Omit<SavedSearch, 'id' | 'createdAt' | 'updatedAt'>>) => Promise.resolve(),
+    delete: (_id: string) => Promise.resolve()
   }
 };
 
@@ -76,6 +146,9 @@ const mockElectronAPI: ElectronAPI = {
 if (typeof window !== 'undefined' && !window.electronAPI) {
   window.electronAPI = mockElectronAPI;
 }
+
+// 创建全局 API 快捷访问
+(window as any).api = window.electronAPI;
 
 function App() {
   const [emojis, setEmojis] = useState<EmojiItem[]>([]);
@@ -85,18 +158,25 @@ function App() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showScannerDialog, setShowScannerDialog] = useState(false);
+  const [showTagManager, setShowTagManager] = useState(false);
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+  const [selectedEmojiIds, setSelectedEmojiIds] = useState<string[]>([]);
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadInitialData = useCallback(async () => {
     try {
-      const [categoriesData, settingsData] = await Promise.all([
+      const [categoriesData, settingsData, searchesData] = await Promise.all([
         window.electronAPI?.categories?.getAll() || Promise.resolve([]),
-        loadSettings()
+        loadSettings(),
+        window.electronAPI?.savedSearches?.getAll() || Promise.resolve([])
       ]);
 
       setCategories(categoriesData);
       setSettings(settingsData);
+      setSavedSearches(searchesData);
       setViewMode(settingsData.viewMode || 'grid');
     } catch (error) {
       console.error('Failed to load initial data:', error);
@@ -242,6 +322,7 @@ function App() {
         onImport={() => setShowImportDialog(true)}
         onSettings={() => setShowSettingsDialog(true)}
         onCategoriesChange={setCategories}
+        onScanner={() => setShowScannerDialog(true)}
       />
       
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -251,6 +332,7 @@ function App() {
           onViewModeChange={setViewMode}
           searchFilters={searchFilters}
           onFiltersChange={setSearchFilters}
+          onAdvancedSearch={() => setShowAdvancedSearch(true)}
         />
         
         <EmojiGrid
@@ -259,6 +341,10 @@ function App() {
           onEmojiUpdate={handleEmojiUpdate}
           onEmojiDelete={handleEmojiDelete}
           thumbnailSize={settings?.thumbnailSize || 'medium'}
+          onTagManage={(ids) => {
+            setSelectedEmojiIds(ids);
+            setShowTagManager(true);
+          }}
         />
       </div>
 
@@ -276,6 +362,65 @@ function App() {
           settings={settings}
           onClose={() => setShowSettingsDialog(false)}
           onSettingsUpdate={handleSettingsUpdate}
+        />
+      )}
+
+      {showScannerDialog && (
+        <ScannerDialog
+          onClose={() => setShowScannerDialog(false)}
+          onCompleted={async () => {
+            await loadEmojis();
+          }}
+        />
+      )}
+
+      {showTagManager && (
+        <TagManager
+          isOpen={showTagManager}
+          onClose={() => setShowTagManager(false)}
+          selectedEmojiIds={selectedEmojiIds}
+          onTagsApplied={async () => {
+            await loadEmojis();
+            setSelectedEmojiIds([]);
+          }}
+        />
+      )}
+
+      {showAdvancedSearch && (
+        <AdvancedSearch
+          isOpen={showAdvancedSearch}
+          onClose={() => setShowAdvancedSearch(false)}
+          onSearch={(filters) => {
+            setSearchFilters(filters);
+            setShowAdvancedSearch(false);
+          }}
+          currentFilters={searchFilters}
+          savedSearches={savedSearches}
+          onSaveSearch={async (name, filters) => {
+            try {
+              const newSearch = await window.electronAPI?.savedSearches?.create({
+                name,
+                filters,
+                isDefault: false
+              });
+              if (newSearch) {
+                setSavedSearches([...savedSearches, newSearch]);
+              }
+            } catch (error) {
+              console.error('Failed to save search:', error);
+            }
+          }}
+          onLoadSearch={(search) => {
+            setSearchFilters(search.filters);
+          }}
+          onDeleteSearch={async (id) => {
+            try {
+              await window.electronAPI?.savedSearches?.delete(id);
+              setSavedSearches(savedSearches.filter(s => s.id !== id));
+            } catch (error) {
+              console.error('Failed to delete search:', error);
+            }
+          }}
         />
       )}
     </div>

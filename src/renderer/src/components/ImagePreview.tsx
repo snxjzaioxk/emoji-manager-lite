@@ -9,7 +9,7 @@ import {
   RefreshCw as RefreshIcon
 } from 'lucide-react';
 import { EmojiItem } from '../../../shared/types';
-import { toFileURL, formatFileSize, safeAsync } from '../../../shared/utils';
+import { toFileURL, safeAsync } from '../../../shared/utils';
 
 interface ImagePreviewProps {
   emoji: EmojiItem;
@@ -174,7 +174,7 @@ export function ImagePreview({
     setRetryCount(prev => prev + 1);
   };
 
-  const handleDownload = async (e?: React.MouseEvent) => {
+  const handleDownload = async (e?: React.MouseEvent<HTMLButtonElement>) => {
     console.log('Download button clicked');
     try {
       // 创建一个临时链接来下载文件
@@ -230,7 +230,7 @@ export function ImagePreview({
     }
   };
 
-  const handleCopy = async (e?: React.MouseEvent) => {
+  const handleCopy = async (e?: React.MouseEvent<HTMLButtonElement>) => {
     console.log('Copy button clicked');
     try {
       // 立即给用户反馈
@@ -267,7 +267,7 @@ export function ImagePreview({
     }
   };
 
-  const handleFavoriteToggle = async (e?: React.MouseEvent) => {
+  const handleFavoriteToggle = async (e?: React.MouseEvent<HTMLButtonElement>) => {
     console.log('Favorite button clicked');
     try {
       const startTime = Date.now();

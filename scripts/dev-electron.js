@@ -18,6 +18,7 @@ function waitForFile(filePath, timeoutMs = 60000, intervalMs = 250) {
     const timer = setInterval(() => {
       if (fs.existsSync(filePath)) {
         clearInterval(timer);
+
         resolve();
       } else if (Date.now() - start > timeoutMs) {
         clearInterval(timer);

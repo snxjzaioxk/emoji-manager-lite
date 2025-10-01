@@ -1,5 +1,6 @@
 import React from 'react';
 import { Category } from '../../../shared/types';
+import { CategoryTree } from './CategoryTree';
 import {
   Folder as FolderIcon,
   Heart as HeartIcon,
@@ -7,9 +8,6 @@ import {
   Download as DownloadIcon,
   Settings as SettingsIcon,
   Plus as PlusIcon,
-  MoreVertical as MoreVerticalIcon,
-  Edit as EditIcon,
-  Trash as TrashIcon,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -19,20 +17,19 @@ interface SidebarProps {
   onImport: () => void;
   onSettings: () => void;
   onCategoriesChange: (categories: Category[]) => void;
+  onScanner: () => void;
 }
 
-export function Sidebar({ categories, selectedCategory, onCategorySelect, onImport, onSettings, onCategoriesChange }: SidebarProps) {
+export function Sidebar({ categories, selectedCategory, onCategorySelect, onImport, onSettings, onCategoriesChange, onScanner }: SidebarProps) {
   const defaultCategories = [
     { id: '', name: '全部表情', icon: FolderIcon },
     { id: 'favorites', name: '收藏夹', icon: HeartIcon },
     { id: 'recent', name: '最近使用', icon: ClockIcon }
   ];
 
-  const customCategories = categories.filter(cat => 
+  const customCategories = categories.filter(cat =>
     !['default', 'favorites', 'recent'].includes(cat.id)
   );
-
-  const [openMenuId, setOpenMenuId] = React.useState<string | null>(null);
 
   const reloadCategories = async () => {
     const cats = await window.electronAPI?.categories?.getAll?.();
@@ -66,28 +63,50 @@ export function Sidebar({ categories, selectedCategory, onCategorySelect, onImpo
     }
   };
 
-  const handleRenameCategory = async (cat: Category) => {
-    const name = prompt('重命名分类', cat.name);
-    if (!name || !name.trim() || name.trim() === cat.name) return;
+  const handleCategoryUpdate = async (categoryId: string, updates: Partial<Category>) => {
     try {
-      await window.electronAPI?.categories?.update(cat.id, { name: name.trim() });
+      await window.electronAPI?.categories?.update(categoryId, updates);
       await reloadCategories();
     } catch (e) {
-      console.error('Rename category failed:', e);
-      alert('重命名失败');
+      console.error('Update category failed:', e);
+      throw e;
     }
   };
 
-  const handleDeleteCategory = async (cat: Category) => {
-    const ok = confirm(`确定删除分类 “${cat.name}” ?\n该分类下的表情将移动到“默认分类”。`);
-    if (!ok) return;
+  const handleCategoryDelete = async (categoryId: string) => {
     try {
-      await window.electronAPI?.categories?.delete(cat.id);
-      if (selectedCategory === cat.id) onCategorySelect('');
+      await window.electronAPI?.categories?.delete(categoryId);
+      if (selectedCategory === categoryId) onCategorySelect('');
       await reloadCategories();
-    } catch (e: unknown) {
+    } catch (e) {
       console.error('Delete category failed:', e);
-      alert((e as Error)?.message || '删除失败');
+      throw e;
+    }
+  };
+
+  const handleCategoryCreate = async (category: Omit<Category, 'createdAt' | 'updatedAt'>) => {
+    try {
+      await window.electronAPI?.categories?.add(category);
+      await reloadCategories();
+    } catch (e) {
+      console.error('Create category failed:', e);
+      throw e;
+    }
+  };
+
+  const handleReorderCategories = async (updatedCategories: Category[]) => {
+    try {
+      // Update each category's position
+      for (const cat of updatedCategories) {
+        await window.electronAPI?.categories?.update(cat.id, {
+          position: cat.position,
+          parentId: cat.parentId
+        });
+      }
+      await reloadCategories();
+    } catch (e) {
+      console.error('Reorder categories failed:', e);
+      throw e;
     }
   };
 
@@ -126,7 +145,7 @@ export function Sidebar({ categories, selectedCategory, onCategorySelect, onImpo
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
             <span style={{ fontSize: '0.875rem', fontWeight: '500', color: 'var(--text-secondary)' }}>快速访问</span>
           </div>
-          
+
           {defaultCategories.map(category => {
             const Icon = category.icon;
             return (
@@ -149,67 +168,27 @@ export function Sidebar({ categories, selectedCategory, onCategorySelect, onImpo
               <PlusIcon size={14} />
             </button>
           </div>
-          
-          {customCategories.map(category => {
-            const isSelected = selectedCategory === category.id;
-            return (
-              <div key={category.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                <button
-                  onClick={() => onCategorySelect(category.id)}
-                  style={{ ...getCategoryButtonStyle(isSelected), flex: 1 }}
-                >
-                  <div 
-                    style={{ 
-                      width: '0.75rem', 
-                      height: '0.75rem', 
-                      borderRadius: '50%',
-                      backgroundColor: category.color || '#6c757d'
-                    }}
-                  />
-                  <span style={{ fontSize: '0.875rem' }}>{category.name}</span>
-                </button>
 
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setOpenMenuId(openMenuId === category.id ? null : category.id);
-                  }}
-                  onTouchEnd={(e) => {
-                    // 触控设备优化：防止触控事件同时触发click
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setOpenMenuId(openMenuId === category.id ? null : category.id);
-                  }}
-                  title="分类菜单"
-                  style={{ touchAction: 'manipulation' }}
-                >
-                  <MoreVerticalIcon size={14} />
-                </button>
-
-                {openMenuId === category.id && (
-                  <div className="absolute right-0 top-full mt-1 bg-primary border border-border-color rounded shadow-lg z-20 min-w-32">
-                    <button
-                      onClick={() => { setOpenMenuId(null); handleRenameCategory(category); }}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-secondary flex items-center gap-2"
-                    >
-                      <EditIcon size={14} /> 重命名
-                    </button>
-                    <button
-                      onClick={() => { setOpenMenuId(null); handleDeleteCategory(category); }}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-secondary text-red-500 flex items-center gap-2"
-                    >
-                      <TrashIcon size={14} /> 删除
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          <CategoryTree
+            categories={customCategories}
+            selectedCategory={selectedCategory}
+            onCategorySelect={onCategorySelect}
+            onCategoryUpdate={handleCategoryUpdate}
+            onCategoryDelete={handleCategoryDelete}
+            onCategoryCreate={handleCategoryCreate}
+            onReorderCategories={handleReorderCategories}
+          />
         </div>
       </div>
 
       <div style={{ padding: '0.5rem', borderTop: '1px solid var(--border-color)' }}>
+        <button
+          onClick={onScanner}
+          className="btn btn-secondary w-full mb-2"
+        >
+          扫描本地表情
+        </button>
+
         <button
           onClick={onImport}
           className="btn btn-primary w-full mb-2"

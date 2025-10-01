@@ -84,13 +84,12 @@ export class FileManager {
 
   async importEmojis(options: ImportOptions): Promise<{ success: number; failed: number; duplicates: number }> {
     const stats = { success: 0, failed: 0, duplicates: 0 };
-    
+
     try {
       if (!this.storageDirInitialized) {
         await this.refreshStorageDir();
       }
 
-      // Build list of sources from array or semicolon-separated string
       let sources: string[] = [];
       if (Array.isArray(options.sourcePaths) && options.sourcePaths.length > 0) {
         sources = options.sourcePaths.map((s: string) => this.toNativePath(s));
@@ -109,37 +108,82 @@ export class FileManager {
         }
       }
 
-      // de-duplicate file list
-      const files = Array.from(new Set(discoveredFiles));
-      
-      for (const filePath of files) {
+      const uniqueFiles = Array.from(new Set(discoveredFiles));
+      const importResult = await this.importFromPreparedFiles(uniqueFiles, {
+        targetCategory: options.targetCategory,
+        skipDuplicates: options.skipDuplicates,
+        autoGenerateTags: options.autoGenerateTags
+      });
+
+      return {
+        success: importResult.success,
+        failed: importResult.failed + stats.failed,
+        duplicates: importResult.duplicates
+      };
+    } catch (error) {
+      console.error('Import failed:', error);
+      throw error;
+    }
+  }
+
+  async importFromPreparedFiles(files: string[], options: {
+    targetCategory?: string;
+    skipDuplicates?: boolean;
+    autoGenerateTags?: boolean;
+    extraTags?: string[];
+  } = {}): Promise<{ success: number; failed: number; duplicates: number }> {
+    const stats = { success: 0, failed: 0, duplicates: 0 };
+
+    if (!files || files.length === 0) {
+      return stats;
+    }
+
+    try {
+      if (!this.storageDirInitialized) {
+        await this.refreshStorageDir();
+      }
+
+      const uniqueFiles = Array.from(new Set(files.map((file) => this.toNativePath(file))));
+      for (const filePath of uniqueFiles) {
         try {
-          const isDuplicate = await this.checkDuplicate(filePath);
-          
-          if (isDuplicate && options.skipDuplicates) {
+          if (options.skipDuplicates && await this.checkDuplicate(filePath)) {
             stats.duplicates++;
             continue;
           }
 
-          const emojiItem = await this.processFile(filePath, options.targetCategory, options.autoGenerateTags);
+          const emojiItem = await this.processFile(
+            filePath,
+            options.targetCategory,
+            options.autoGenerateTags !== false,
+            options.extraTags || []
+          );
           await this.database.addEmoji(emojiItem);
           stats.success++;
         } catch (error) {
-          console.error(`Failed to import ${filePath}:`, error);
+          console.error(`Failed to import prepared file ${filePath}:`, error);
           stats.failed++;
         }
       }
     } catch (error) {
-      console.error('Import failed:', error);
+      console.error('Import prepared files failed:', error);
       throw error;
     }
 
     return stats;
   }
 
+  async isDuplicate(filePath: string): Promise<boolean> {
+    return this.checkDuplicate(this.toNativePath(filePath));
+  }
+
   private async getImageFiles(sourcePath: string): Promise<string[]> {
     const files: string[] = [];
-    const supportedFormats = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+    // Extended format support
+    const supportedFormats = [
+      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp',
+      '.svg', '.ico', '.tif', '.tiff', '.heic', '.heif',
+      '.avif', '.jxl', '.apng'
+    ];
 
     const stat = await fs.stat(sourcePath);
     
@@ -182,7 +226,7 @@ export class FileManager {
     );
   }
 
-  private async processFile(filePath: string, categoryId?: string, autoGenerateTags: boolean = true): Promise<Omit<EmojiItem, 'createdAt' | 'updatedAt'>> {
+  private async processFile(filePath: string, categoryId?: string, autoGenerateTags: boolean = true, extraTags: string[] = []): Promise<Omit<EmojiItem, 'createdAt' | 'updatedAt'>> {
     const fileStats = await fs.stat(filePath);
     const filename = basename(filePath);
     const ext = extname(filePath).toLowerCase();
@@ -210,6 +254,11 @@ export class FileManager {
     }
 
     const tags = autoGenerateTags ? this.generateTags(filename) : [];
+    if (extraTags.length > 0) {
+      tags.push(...extraTags);
+    }
+
+    const uniqueTags = [...new Set(tags.map(tag => tag.toLowerCase()))];
 
     return {
       id,
@@ -220,7 +269,7 @@ export class FileManager {
       size: fileStats.size,
       width,
       height,
-      tags,
+      tags: uniqueTags,
       categoryId: categoryId || 'default',
       isFavorite: false,
       usageCount: 0
@@ -245,13 +294,157 @@ export class FileManager {
     if (!this.storageDirInitialized) {
       await this.refreshStorageDir();
     }
-    const emojis = await this.database.getEmojis();
-    const targetEmojis = emojis.filter(emoji => options.emojiIds.includes(emoji.id));
+
+    const {
+      targetPath,
+      emojiIds,
+      maintainStructure,
+      format,
+      groupByCategory,
+      groupByTag,
+      includeMetadata,
+      generateIndex,
+      namingPattern = '{name}'
+    } = options;
+
+    await fs.mkdir(targetPath, { recursive: true });
+
+    // 批量获取表情包
+    const allEmojis = await this.database.getEmojis();
+    const targetEmojis = allEmojis.filter(emoji => emojiIds.includes(emoji.id));
+
+    // 获取分类信息
+    const categories = await this.database.getCategories();
+    const categoryMap = new Map(categories.map(c => [c.id, c]));
+
+    const exportedFiles: Array<{ emoji: EmojiItem; outputPath: string }> = [];
 
     for (const emoji of targetEmojis) {
-      const targetPath = join(options.targetPath, emoji.filename);
-      await fs.copyFile(emoji.storagePath, targetPath);
+      try {
+        // 确定输出目录
+        let outputDir = targetPath;
+
+        if (groupByCategory && emoji.categoryId) {
+          const category = categoryMap.get(emoji.categoryId);
+          if (category) {
+            outputDir = join(targetPath, this.sanitizePath(category.name));
+            await fs.mkdir(outputDir, { recursive: true });
+          }
+        }
+
+        if (groupByTag && emoji.tags.length > 0) {
+          // 为每个标签创建副本
+          for (const tag of emoji.tags) {
+            const tagDir = join(targetPath, 'tags', this.sanitizePath(tag));
+            await fs.mkdir(tagDir, { recursive: true });
+            const tagFilePath = join(tagDir, this.generateFileName(emoji, namingPattern));
+            await fs.copyFile(emoji.storagePath, tagFilePath);
+          }
+        }
+
+        // 生成文件名
+        const outputFileName = this.generateFileName(emoji, namingPattern);
+        const outputPath = join(outputDir, outputFileName);
+
+        // 复制或转换文件
+        if (format && format !== extname(emoji.filename).slice(1).toLowerCase()) {
+          const convertedPath = await this.convertFormat(emoji.storagePath, format);
+          if (convertedPath) {
+            await fs.copyFile(convertedPath, outputPath.replace(extname(outputPath), `.${format}`));
+          } else {
+            await fs.copyFile(emoji.storagePath, outputPath);
+          }
+        } else {
+          await fs.copyFile(emoji.storagePath, outputPath);
+        }
+
+        exportedFiles.push({ emoji, outputPath });
+      } catch (error) {
+        console.error(`Failed to export ${emoji.filename}:`, error);
+      }
     }
+
+    // 生成元数据文件
+    if (includeMetadata) {
+      const metadataPath = join(targetPath, 'metadata.json');
+      const metadata = {
+        exportDate: new Date().toISOString(),
+        totalFiles: exportedFiles.length,
+        files: exportedFiles.map(({ emoji, outputPath }) => ({
+          id: emoji.id,
+          filename: basename(outputPath),
+          originalName: emoji.filename,
+          tags: emoji.tags,
+          category: emoji.categoryId ? categoryMap.get(emoji.categoryId)?.name : undefined,
+          size: emoji.size,
+          dimensions: `${emoji.width}x${emoji.height}`,
+          format: emoji.format
+        }))
+      };
+      await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
+    }
+
+    // 生成索引HTML
+    if (generateIndex) {
+      const indexPath = join(targetPath, 'index.html');
+      const indexHtml = this.generateIndexHtml(exportedFiles.map(f => f.emoji));
+      await fs.writeFile(indexPath, indexHtml);
+    }
+  }
+
+  private generateFileName(emoji: EmojiItem, pattern: string): string {
+    const now = new Date();
+    const replacements: Record<string, string> = {
+      '{name}': basename(emoji.filename, extname(emoji.filename)),
+      '{date}': now.toISOString().split('T')[0],
+      '{time}': now.toTimeString().split(' ')[0].replace(/:/g, '-'),
+      '{index}': emoji.id.slice(0, 8),
+      '{format}': extname(emoji.filename).slice(1)
+    };
+
+    let fileName = pattern;
+    for (const [key, value] of Object.entries(replacements)) {
+      fileName = fileName.replace(new RegExp(key.replace(/[{}]/g, '\\$&'), 'g'), value);
+    }
+
+    if (!extname(fileName)) {
+      fileName += extname(emoji.filename);
+    }
+
+    return this.sanitizePath(fileName);
+  }
+
+  private sanitizePath(name: string): string {
+    return name.replace(/[<>:"|?*]/g, '_');
+  }
+
+  private generateIndexHtml(emojis: EmojiItem[]): string {
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>表情包导出 - ${new Date().toLocaleDateString()}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
+    .card { background: white; border-radius: 8px; padding: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .card img { width: 100%; height: 120px; object-fit: contain; }
+    .card .name { margin-top: 5px; font-size: 12px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>表情包导出</h1>
+  <p>导出时间：${new Date().toLocaleString()} | 文件数量：${emojis.length}</p>
+  <div class="grid">
+    ${emojis.map(e => `
+      <div class="card">
+        <img src="${e.filename}" alt="${e.filename}">
+        <div class="name">${e.filename}</div>
+      </div>
+    `).join('')}
+  </div>
+</body>
+</html>`;
   }
 
   async deleteEmojiFile(emojiId: string): Promise<void> {

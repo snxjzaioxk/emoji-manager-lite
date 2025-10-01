@@ -6,7 +6,8 @@ import { ImagePreview } from './ImagePreview';
 import { useVirtualGrid } from '../hooks/useVirtualScroll';
 import {
   CheckSquare as CheckSquareIcon,
-  Square as SquareIcon
+  Square as SquareIcon,
+  Tag as TagIcon
 } from 'lucide-react';
 
 interface EmojiGridProps {
@@ -15,6 +16,7 @@ interface EmojiGridProps {
   onEmojiUpdate: (id: string, updates: Partial<EmojiItem>) => void;
   onEmojiDelete: (id: string) => void;
   thumbnailSize: 'small' | 'medium' | 'large';
+  onTagManage?: (selectedIds: string[]) => void;
 }
 
 export function EmojiGrid({
@@ -22,7 +24,8 @@ export function EmojiGrid({
   viewMode,
   onEmojiUpdate,
   onEmojiDelete,
-  thumbnailSize
+  thumbnailSize,
+  onTagManage
 }: EmojiGridProps) {
   const [selectedEmojis, setSelectedEmojis] = useState<Set<string>>(new Set());
   const [batchConverting, setBatchConverting] = useState(false);
@@ -122,15 +125,15 @@ export function EmojiGrid({
         } else {
           console.warn('Copy operation returned false');
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('Failed to copy emoji:', error);
-        // 提供更友好的错误处理
-        if (error.message?.includes('ENOENT')) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes('ENOENT')) {
           alert('复制失败：文件不存在');
-        } else if (error.message?.includes('EPERM')) {
+        } else if (message.includes('EPERM')) {
           alert('复制失败：没有权限访问文件');
         } else {
-          alert(`复制失败：${error.message || '请重试'}`);
+          alert(`复制失败：${message || '请重试'}`);
         }
       }
     }
@@ -154,13 +157,13 @@ export function EmojiGrid({
 
         const endTime = Date.now();
         console.log(`Favorite toggle completed in ${endTime - startTime}ms`);
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('Failed to toggle favorite:', error);
-        // 提供更友好的错误处理
-        if (error.message?.includes('database')) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes('database')) {
           alert('收藏失败：数据库错误，请重试');
         } else {
-          alert(`收藏失败：${error.message || '请重试'}`);
+          alert(`收藏失败：${message || '请重试'}`);
         }
       }
     }
@@ -360,6 +363,12 @@ export function EmojiGrid({
                   disabled={batchExporting}
                   className="btn btn-secondary btn-sm"
                 >导出选中</button>
+                <button
+                  onClick={() => onTagManage?.(Array.from(selectedEmojis))}
+                  className="btn btn-secondary btn-sm"
+                >
+                  管理标签
+                </button>
                 <button
                   onClick={handleBatchDelete}
                   className="btn btn-secondary btn-sm text-red-500"

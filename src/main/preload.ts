@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { EmojiItem, Category, ImportOptions, ExportOptions, SearchFilters } from '../shared/types';
+import { EmojiItem, Category, Tag, ImportOptions, ExportOptions, SearchFilters, ScannerConfig, ScannerRunOptions, SavedSearch } from '../shared/types';
 
 // Helper function to add timeout to IPC calls
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 30000): Promise<T> {
@@ -26,8 +26,24 @@ function validateObject(value: unknown, fieldName: string): object {
   return value;
 }
 
+function validateStringArray(value: unknown, fieldName: string): string[] {
+  if (!Array.isArray(value)) {
+    throw new TypeError(`${fieldName} must be an array of strings`);
+  }
+  return value.map((item, index) => {
+    if (typeof item !== 'string') {
+      throw new TypeError(`${fieldName}[${index}] must be a string`);
+    }
+    return item;
+  });
+}
+
 const api = {
   emojis: {
+    get: (id: string) => {
+      validateString(id, 'id');
+      return withTimeout(ipcRenderer.invoke('get-emoji', id));
+    },
     getAll: (filters?: SearchFilters) => withTimeout(ipcRenderer.invoke('get-emojis', filters)),
     add: (emoji: Omit<EmojiItem, 'createdAt' | 'updatedAt'>) => {
       validateObject(emoji, 'emoji');
@@ -83,6 +99,42 @@ const api = {
     }
   },
 
+  tags: {
+    getAll: () => withTimeout(ipcRenderer.invoke('get-tags')),
+    create: (tag: { name: string; color?: string; description?: string }) => {
+      validateObject(tag, 'tag');
+      validateString(tag.name, 'tag.name');
+      if (tag.color !== undefined && typeof tag.color !== 'string') {
+        throw new TypeError('tag.color must be a string');
+      }
+      if (tag.description !== undefined && typeof tag.description !== 'string') {
+        throw new TypeError('tag.description must be a string');
+      }
+      return withTimeout(ipcRenderer.invoke('create-tag', tag));
+    },
+    update: (id: string, updates: Partial<Omit<Tag, 'id' | 'createdAt' | 'updatedAt'>>) => {
+      validateString(id, 'id');
+      validateObject(updates, 'updates');
+      if (updates.name !== undefined) validateString(updates.name, 'updates.name');
+      if (updates.color !== undefined && typeof updates.color !== 'string') {
+        throw new TypeError('updates.color must be a string');
+      }
+      if (updates.description !== undefined && typeof updates.description !== 'string') {
+        throw new TypeError('updates.description must be a string');
+      }
+      return withTimeout(ipcRenderer.invoke('update-tag', id, updates));
+    },
+    delete: (id: string) => {
+      validateString(id, 'id');
+      return withTimeout(ipcRenderer.invoke('delete-tag', id));
+    },
+    setForEmoji: (emojiId: string, tagNames: string[]) => {
+      validateString(emojiId, 'emojiId');
+      const names = validateStringArray(tagNames, 'tagNames');
+      return withTimeout(ipcRenderer.invoke('set-emoji-tags', emojiId, names));
+    }
+  },
+
   files: {
     selectFolder: () => withTimeout(ipcRenderer.invoke('select-folder')),
     selectFiles: () => withTimeout(ipcRenderer.invoke('select-files')),
@@ -122,6 +174,38 @@ const api = {
         throw new TypeError('sortBy must be "name", "date", or "size"');
       }
       return withTimeout(ipcRenderer.invoke('set-setting', key, value));
+    }
+  },
+
+  scanner: {
+    detectSources: () => withTimeout(ipcRenderer.invoke('scanner-detect-sources')),
+    getConfig: () => withTimeout(ipcRenderer.invoke('scanner-get-config')),
+    saveConfig: (config: Partial<ScannerConfig>) => {
+      validateObject(config, 'config');
+      return withTimeout(ipcRenderer.invoke('scanner-save-config', config));
+    },
+    run: (options: ScannerRunOptions) => {
+      validateObject(options, 'options');
+      return withTimeout(ipcRenderer.invoke('scanner-run', options), 120000);
+    }
+  },
+
+  savedSearches: {
+    getAll: () => withTimeout(ipcRenderer.invoke('get-saved-searches')),
+    create: (search: Omit<SavedSearch, 'id' | 'createdAt' | 'updatedAt'>) => {
+      validateObject(search, 'search');
+      validateString(search.name, 'search.name');
+      validateObject(search.filters, 'search.filters');
+      return withTimeout(ipcRenderer.invoke('create-saved-search', search));
+    },
+    update: (id: string, updates: Partial<Omit<SavedSearch, 'id' | 'createdAt' | 'updatedAt'>>) => {
+      validateString(id, 'id');
+      validateObject(updates, 'updates');
+      return withTimeout(ipcRenderer.invoke('update-saved-search', id, updates));
+    },
+    delete: (id: string) => {
+      validateString(id, 'id');
+      return withTimeout(ipcRenderer.invoke('delete-saved-search', id));
     }
   }
 };
