@@ -67,20 +67,51 @@ export function EmojiCard({
     setImgSrc('');
   }, [emoji.storagePath]);
 
-  // 懒加载观察器
+  // 懒加载观察器 - 更激进的内存管理
   useEffect(() => {
     if (!containerRef.current) return;
 
     const observer = createLazyLoadObserver((entries) => {
       entries.forEach(entry => {
-        if (entry.isIntersecting && !imageInView) {
-          setImageInView(true);
+        const rect = entry.boundingClientRect;
+        const viewportHeight = window.innerHeight;
+
+        // 只在接近视口时加载（前后100px范围）
+        const isNearViewport = rect.bottom >= -100 && rect.top <= viewportHeight + 100;
+
+        if (isNearViewport && entry.isIntersecting) {
+          if (!imageInView) {
+            setImageInView(true);
+          }
+        } else {
+          // 离开视口立即释放
+          if (imageInView) {
+            setImageInView(false);
+            setImageLoaded(false);
+            setImgSrc('');
+
+            // 强制清空图片
+            if (imgRef.current) {
+              imgRef.current.removeAttribute('src');
+              imgRef.current.src = '';
+            }
+          }
         }
       });
     });
 
     observer.observe(containerRef.current);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      // 清理时释放图片
+      if (imgRef.current) {
+        imgRef.current.removeAttribute('src');
+        imgRef.current.src = '';
+      }
+      setImgSrc('');
+      setImageInView(false);
+      setImageLoaded(false);
+    };
   }, [imageInView]);
 
   // 当图片进入视图时才加载

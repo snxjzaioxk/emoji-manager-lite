@@ -461,6 +461,7 @@ export function EmojiGrid({
         onOpenLocation={handlePreviewOpenLocation}
       />
     )}
+
       </div>
     );
   }

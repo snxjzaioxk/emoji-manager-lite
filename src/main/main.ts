@@ -7,6 +7,16 @@ import { FileManager } from './fileManager';
 import { EmojiItem, Category, ImportOptions, ExportOptions, SearchFilters, ScannerRunOptions, ScannerConfig, SavedSearch } from '../shared/types';
 import { EmojiScanner } from './emojiScanner';
 
+// Disable all GPU features to save memory
+app.disableHardwareAcceleration();
+app.commandLine.appendSwitch('disable-gpu');
+app.commandLine.appendSwitch('disable-software-rasterizer');
+app.commandLine.appendSwitch('disable-gpu-compositing');
+
+// Set memory limits
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=256 --max-semi-space-size=4');
+app.commandLine.appendSwitch('max_old_space_size', '256');
+
 class EmojiManagerApp {
   private mainWindow: BrowserWindow | null = null;
   private database: Database;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { EmojiGrid } from './components/EmojiGrid';
 import { Toolbar } from './components/Toolbar';
@@ -165,6 +165,7 @@ function App() {
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const memoryCleanupTimer = useRef<NodeJS.Timeout>();
 
   const loadInitialData = useCallback(async () => {
     try {
@@ -224,9 +225,11 @@ function App() {
         delete (filters as { categoryId?: string }).categoryId;
       }
 
+      // Get all emojis - no pagination
       const emojisData = window.electronAPI?.emojis
         ? await window.electronAPI.emojis.getAll(filters) || []
         : [];
+
       setEmojis(emojisData);
     } catch (error) {
       console.error('Failed to load emojis:', error);
@@ -240,7 +243,34 @@ function App() {
 
   useEffect(() => {
     loadEmojis();
-  }, [loadEmojis]);
+  }, [selectedCategory, searchFilters, loadEmojis]);
+
+  // Periodic memory cleanup
+  useEffect(() => {
+    memoryCleanupTimer.current = setInterval(() => {
+      // Force garbage collection if available
+      if ((window as any).gc) {
+        (window as any).gc();
+      }
+
+      // Clear all img elements not in viewport
+      const allImages = document.querySelectorAll('img');
+      allImages.forEach(img => {
+        const rect = img.getBoundingClientRect();
+        const inViewport = rect.top < window.innerHeight && rect.bottom > 0;
+        if (!inViewport && img.src) {
+          img.removeAttribute('src');
+          img.src = '';
+        }
+      });
+    }, 30000); // Every 30 seconds
+
+    return () => {
+      if (memoryCleanupTimer.current) {
+        clearInterval(memoryCleanupTimer.current);
+      }
+    };
+  }, []);
 
   const handleSearch = (keyword: string) => {
     setSearchFilters(prev => ({ ...prev, keyword }));
